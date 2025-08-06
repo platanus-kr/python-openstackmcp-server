@@ -46,3 +46,15 @@ def mock_openstack_base():
         return_value=mock_conn
     ) as mock_func:
         yield mock_conn
+
+@pytest.fixture
+def mock_openstack_connect_neutron():
+    """Mock openstack.connect function for neutron_tools."""
+    mock_conn = Mock()
+
+    with patch(
+        "openstack_mcp_server.tools.neutron_tools.openstack.connect",
+        return_value=mock_conn
+    ) as mock_func:
+        with patch("openstack_mcp_server.tools.neutron_tools.openstack.enable_logging"):
+            yield mock_conn
