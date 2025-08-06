@@ -1,94 +1,12 @@
 from .base import get_openstack_conn
 from fastmcp import FastMCP
-from pydantic import BaseModel
-
-
-class Network(BaseModel):
-    id: str
-    name: str
-    status: str
-    description: str | None = None
-    is_admin_state_up: bool = True
-    is_shared: bool = False
-    mtu: int | None = None
-    provider_network_type: str | None = None
-    provider_physical_network: str | None = None
-    provider_segmentation_id: int | None = None
-    project_id: str | None = None
-
-
-class Subnet(BaseModel):
-    id: str
-    name: str
-    status: str
-
-
-class Port(BaseModel):
-    id: str
-    name: str
-    status: str
-
-
-class Router(BaseModel):
-    id: str
-    name: str
-    status: str
-
-
-class SecurityGroup(BaseModel):
-    id: str
-    name: str
-    status: str
-
-
-class SecurityGroupRule(BaseModel):
-    id: str
-    name: str
-    status: str
-
-
-class FloatingIP(BaseModel):
-    id: str
-    name: str
-    status: str
+from openstack_mcp_server.tools.response.neutron import Network
 
 
 class NeutronTools:
     """
     A class to encapsulate Neutron-related tools and utilities.
     """
-
-    def _convert_to_network_model(self, openstack_network) -> Network:
-        """
-        Convert an OpenStack network object to a Network pydantic model.
-
-        Args:
-            openstack_network: OpenStack network object
-
-        Returns:
-            Network pydantic model
-        """
-        return Network(
-            id=openstack_network.id,
-            name=openstack_network.name or "",
-            status=openstack_network.status or "",
-            description=getattr(openstack_network, "description", None),
-            is_admin_state_up=getattr(
-                openstack_network, "admin_state_up", True
-            ),
-            is_shared=getattr(openstack_network, "shared", False),
-            mtu=getattr(openstack_network, "mtu", None),
-            provider_network_type=getattr(
-                openstack_network, "provider_network_type", None
-            ),
-            provider_physical_network=getattr(
-                openstack_network, "provider_physical_network", None
-            ),
-            provider_segmentation_id=getattr(
-                openstack_network, "provider_segmentation_id", None
-            ),
-            project_id=getattr(openstack_network, "project_id", None),
-        )
 
     def register_tools(self, mcp: FastMCP):
         """
@@ -116,28 +34,19 @@ class NeutronTools:
         """
         conn = get_openstack_conn()
 
-        try:
-            networks = conn.list_networks()
+        filters = {}
 
-            # Apply filters
-            if status_filter:
-                networks = [
-                    net
-                    for net in networks
-                    if net.status.upper() == status_filter.upper()
-                ]
+        if status_filter:
+            filters["status"] = status_filter.upper()
 
-            if shared_only:
-                networks = [net for net in networks if net.shared]
+        if shared_only:
+            filters["shared"] = True
 
-            # Convert OpenStack networks to Network models
-            return [
-                self._convert_to_network_model(network) for network in networks
-            ]
+        networks = conn.list_networks(filters=filters)
 
-        except Exception as e:
-            # Return empty list on error, or raise exception for better error handling
-            raise Exception(f"Failed to retrieve networks: {str(e)}")
+        return [
+            self._convert_to_network_model(network) for network in networks
+        ]
 
     def create_network(
         self,
@@ -166,35 +75,29 @@ class NeutronTools:
         """
         conn = get_openstack_conn()
 
-        try:
-            network_args = {
-                "name": name,
-                "admin_state_up": is_admin_state_up,
-                "shared": is_shared,
-            }
+        network_args = {
+            "name": name,
+            "admin_state_up": is_admin_state_up,
+            "shared": is_shared,
+        }
 
-            if description:
-                network_args["description"] = description
+        if description:
+            network_args["description"] = description
 
-            if provider_network_type:
-                network_args["provider_network_type"] = provider_network_type
+        if provider_network_type:
+            network_args["provider_network_type"] = provider_network_type
 
-            if provider_physical_network:
-                network_args["provider_physical_network"] = (
-                    provider_physical_network
-                )
+        if provider_physical_network:
+            network_args["provider_physical_network"] = (
+                provider_physical_network
+            )
 
-            if provider_segmentation_id is not None:
-                network_args["provider_segmentation_id"] = (
-                    provider_segmentation_id
-                )
+        if provider_segmentation_id is not None:
+            network_args["provider_segmentation_id"] = provider_segmentation_id
 
-            network = conn.network.create_network(**network_args)
+        network = conn.network.create_network(**network_args)
 
-            return self._convert_to_network_model(network)
-
-        except Exception as e:
-            raise Exception(f"Failed to create network: {str(e)}")
+        return self._convert_to_network_model(network)
 
     def get_network_detail(self, network_id: str) -> Network:
         """
@@ -208,15 +111,11 @@ class NeutronTools:
         """
         conn = get_openstack_conn()
 
-        try:
-            network = conn.network.get_network(network_id)
-            if not network:
-                raise Exception(f"Network with ID {network_id} not found")
+        network = conn.network.get_network(network_id)
+        if not network:
+            raise Exception(f"Network with ID {network_id} not found")
 
-            return self._convert_to_network_model(network)
-
-        except Exception as e:
-            raise Exception(f"Failed to retrieve network details: {str(e)}")
+        return self._convert_to_network_model(network)
 
     def update_network(
         self,
@@ -241,29 +140,25 @@ class NeutronTools:
         """
         conn = get_openstack_conn()
 
-        try:
-            update_args = {}
+        update_args = {}
 
-            if name is not None:
-                update_args["name"] = name
-            if description is not None:
-                update_args["description"] = description
-            if is_admin_state_up is not None:
-                update_args["admin_state_up"] = is_admin_state_up
-            if is_shared is not None:
-                update_args["shared"] = is_shared
+        if name is not None:
+            update_args["name"] = name
+        if description is not None:
+            update_args["description"] = description
+        if is_admin_state_up is not None:
+            update_args["admin_state_up"] = is_admin_state_up
+        if is_shared is not None:
+            update_args["shared"] = is_shared
 
-            if not update_args:
-                raise Exception("No update parameters provided")
+        if not update_args:
+            raise Exception("No update parameters provided")
 
-            network = conn.network.update_network(network_id, **update_args)
+        network = conn.network.update_network(network_id, **update_args)
 
-            return self._convert_to_network_model(network)
+        return self._convert_to_network_model(network)
 
-        except Exception as e:
-            raise Exception(f"Failed to update network: {str(e)}")
-
-    def delete_network(self, network_id: str) -> str:
+    def delete_network(self, network_id: str) -> None:
         """
         Delete a Neutron network.
 
@@ -271,27 +166,41 @@ class NeutronTools:
             network_id: ID of the network to delete
 
         Returns:
-            Confirmation message
+            None
         """
         conn = get_openstack_conn()
 
-        try:
-            # First, get network details for confirmation
-            network = conn.network.get_network(network_id)
-            if not network:
-                raise Exception(f"Network with ID {network_id} not found")
+        network = conn.network.get_network(network_id)
+        if not network:
+            raise Exception(f"Network with ID {network_id} not found")
 
-            network_name = network.name
+        conn.network.delete_network(network_id, ignore_missing=False)
 
-            # Delete the network
-            conn.network.delete_network(network_id, ignore_missing=False)
+        return None
 
-            return f"Network '{network_name}' (ID: {network_id}) deleted successfully"
+    def _convert_to_network_model(self, openstack_network) -> Network:
+        """
+        Convert an OpenStack network object to a Network pydantic model.
 
-        except Exception as e:
-            if "Network with ID" in str(e) and "not found" in str(e):
-                # Re-raise our own not found exception
-                raise e
-            else:
-                # Wrap other exceptions
-                raise Exception(f"Failed to delete network: {str(e)}")
+        Args:
+            openstack_network: OpenStack network object
+
+        Returns:
+            Network pydantic model
+        """
+        return Network(
+            id=openstack_network.id,
+            name=openstack_network.name or "",
+            status=openstack_network.status or "",
+            description=openstack_network.description or None,
+            is_admin_state_up=openstack_network.admin_state_up or False,
+            is_shared=openstack_network.shared or False,
+            mtu=openstack_network.mtu or None,
+            provider_network_type=openstack_network.provider_network_type
+            or None,
+            provider_physical_network=openstack_network.provider_physical_network
+            or None,
+            provider_segmentation_id=openstack_network.provider_segmentation_id
+            or None,
+            project_id=openstack_network.project_id or None,
+        )

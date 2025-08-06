@@ -1,7 +1,8 @@
 import pytest
 from unittest.mock import Mock
 from openstack import exceptions
-from openstack_mcp_server.tools.neutron_tools import NeutronTools, Network
+from openstack_mcp_server.tools.response.neutron import Network
+from openstack_mcp_server.tools.neutron_tools import NeutronTools
 
 
 class TestNeutronTools:
@@ -84,7 +85,7 @@ class TestNeutronTools:
         assert result[1] == expected_network2
 
         # Verify mock calls
-        mock_conn.list_networks.assert_called_once()
+        mock_conn.list_networks.assert_called_once_with(filters={})
 
     def test_get_neutron_networks_empty_list(self, mock_openstack_connect_neutron):
         """Test getting neutron networks when no networks exist."""
@@ -101,7 +102,7 @@ class TestNeutronTools:
         assert result == []
 
         # Verify mock calls
-        mock_conn.list_networks.assert_called_once()
+        mock_conn.list_networks.assert_called_once_with(filters={})
 
     def test_get_neutron_networks_with_status_filter(self, mock_openstack_connect_neutron):
         """Test getting neutron networks with status filter."""
@@ -134,7 +135,8 @@ class TestNeutronTools:
         mock_network2.provider_segmentation_id = None
         mock_network2.project_id = None
         
-        mock_conn.list_networks.return_value = [mock_network1, mock_network2]
+        # Mock should return only the filtered network (server-side filtering)
+        mock_conn.list_networks.return_value = [mock_network1]  # Only ACTIVE network
 
         # Test get_neutron_networks() with status filter
         neutron_tools = self.get_neutron_tools()
@@ -144,6 +146,9 @@ class TestNeutronTools:
         assert len(result) == 1
         assert result[0].id == "net-active"
         assert result[0].status == "ACTIVE"
+        
+        # Verify mock was called with proper filter
+        mock_conn.list_networks.assert_called_once_with(filters={'status': 'ACTIVE'})
 
     def test_get_neutron_networks_shared_only(self, mock_openstack_connect_neutron):
         """Test getting only shared networks."""
@@ -176,7 +181,8 @@ class TestNeutronTools:
         mock_network2.provider_segmentation_id = None
         mock_network2.project_id = None
         
-        mock_conn.list_networks.return_value = [mock_network1, mock_network2]
+        # Mock should return only the shared network (server-side filtering) 
+        mock_conn.list_networks.return_value = [mock_network2]  # Only shared network
 
         # Test get_neutron_networks() with shared_only filter
         neutron_tools = self.get_neutron_tools()
@@ -186,20 +192,160 @@ class TestNeutronTools:
         assert len(result) == 1
         assert result[0].id == "net-shared"
         assert result[0].is_shared is True
+        
+        # Verify mock was called with proper filter
+        mock_conn.list_networks.assert_called_once_with(filters={'shared': True})
 
-    def test_get_neutron_networks_exception(self, mock_openstack_connect_neutron):
-        """Test get_neutron_networks when an exception occurs."""
+    def test_get_neutron_networks_combined_filters(self, mock_openstack_connect_neutron):
+        """Test getting networks with both status and shared filters."""
         mock_conn = mock_openstack_connect_neutron
         
-        # Configure mock to raise exception
-        mock_conn.list_networks.side_effect = exceptions.HttpException("Connection failed")
-
-        # Test get_neutron_networks()
-        neutron_tools = self.get_neutron_tools()
+        # Create mock network that matches both filters (ACTIVE and shared)
+        mock_network = Mock()
+        mock_network.id = "net-active-shared"
+        mock_network.name = "active-shared-network"
+        mock_network.status = "ACTIVE"
+        mock_network.description = None
+        mock_network.admin_state_up = True
+        mock_network.shared = True
+        mock_network.mtu = None
+        mock_network.provider_network_type = None
+        mock_network.provider_physical_network = None
+        mock_network.provider_segmentation_id = None
+        mock_network.project_id = None
         
-        # Verify exception is raised
-        with pytest.raises(Exception, match="Failed to retrieve networks: Connection failed"):
-            neutron_tools.get_neutron_networks()
+        # Mock should return only the network that matches both filters
+        mock_conn.list_networks.return_value = [mock_network]
+
+        # Test get_neutron_networks() with both filters
+        neutron_tools = self.get_neutron_tools()
+        result = neutron_tools.get_neutron_networks(status_filter="ACTIVE", shared_only=True)
+        
+        # Verify only the matching network is returned
+        assert len(result) == 1
+        assert result[0].id == "net-active-shared"
+        assert result[0].status == "ACTIVE"
+        assert result[0].is_shared is True
+        
+        # Verify mock was called with both filters
+        mock_conn.list_networks.assert_called_once_with(filters={'status': 'ACTIVE', 'shared': True})
+
+    def test_get_neutron_networks_case_insensitive_status(self, mock_openstack_connect_neutron):
+        """Test that status filter is case-insensitive (converts to uppercase)."""
+        mock_conn = mock_openstack_connect_neutron
+        
+        # Create mock network
+        mock_network = Mock()
+        mock_network.id = "net-lowercase-test"
+        mock_network.name = "test-network"
+        mock_network.status = "ACTIVE"
+        mock_network.description = None
+        mock_network.admin_state_up = True
+        mock_network.shared = False
+        mock_network.mtu = None
+        mock_network.provider_network_type = None
+        mock_network.provider_physical_network = None
+        mock_network.provider_segmentation_id = None
+        mock_network.project_id = None
+        
+        mock_conn.list_networks.return_value = [mock_network]
+
+        # Test with lowercase status filter
+        neutron_tools = self.get_neutron_tools()
+        result = neutron_tools.get_neutron_networks(status_filter="active")
+        
+        # Verify business logic: lowercase converted to uppercase
+        assert len(result) == 1
+        assert result[0].status == "ACTIVE"
+        
+        # Verify mock was called with uppercase filter
+        mock_conn.list_networks.assert_called_once_with(filters={'status': 'ACTIVE'})
+
+    def test_get_neutron_networks_empty_string_filter_ignored(self, mock_openstack_connect_neutron):
+        """Test that empty string status filter is ignored."""
+        mock_conn = mock_openstack_connect_neutron
+        
+        mock_network = Mock()
+        mock_network.id = "net-empty-filter"
+        mock_network.name = "test-network"
+        mock_network.status = "ACTIVE"
+        mock_network.description = None
+        mock_network.admin_state_up = True
+        mock_network.shared = False
+        mock_network.mtu = None
+        mock_network.provider_network_type = None
+        mock_network.provider_physical_network = None
+        mock_network.provider_segmentation_id = None
+        mock_network.project_id = None
+        
+        mock_conn.list_networks.return_value = [mock_network]
+
+        # Test with empty string status filter
+        neutron_tools = self.get_neutron_tools()
+        result = neutron_tools.get_neutron_networks(status_filter="")
+        
+        # Verify empty filter was ignored (no status in filters)
+        assert len(result) == 1
+        mock_conn.list_networks.assert_called_once_with(filters={})
+
+    def test_get_neutron_networks_with_none_status_filter(self, mock_openstack_connect_neutron):
+        """Test that None status filter is ignored (same as no filter)."""
+        mock_conn = mock_openstack_connect_neutron
+        
+        mock_network = Mock()
+        mock_network.id = "net-none-filter"
+        mock_network.name = "test-network"
+        mock_network.status = "ACTIVE"
+        mock_network.description = None
+        mock_network.admin_state_up = True
+        mock_network.shared = False
+        mock_network.mtu = None
+        mock_network.provider_network_type = None
+        mock_network.provider_physical_network = None
+        mock_network.provider_segmentation_id = None
+        mock_network.project_id = None
+        
+        mock_conn.list_networks.return_value = [mock_network]
+
+        # Test with None status filter (should be ignored)
+        neutron_tools = self.get_neutron_tools()
+        result = neutron_tools.get_neutron_networks(status_filter=None)
+        
+        # Verify None filter was ignored (empty filters dict)
+        assert len(result) == 1
+        mock_conn.list_networks.assert_called_once_with(filters={})
+
+    def test_get_neutron_networks_mixed_case_status_variations(self, mock_openstack_connect_neutron):
+        """Test various case combinations for status filter."""
+        mock_conn = mock_openstack_connect_neutron
+        
+        mock_network = Mock()
+        mock_network.id = "net-case-test"
+        mock_network.name = "case-test-network"
+        mock_network.status = "DOWN"
+        mock_network.description = None
+        mock_network.admin_state_up = False
+        mock_network.shared = False
+        mock_network.mtu = None
+        mock_network.provider_network_type = None
+        mock_network.provider_physical_network = None
+        mock_network.provider_segmentation_id = None
+        mock_network.project_id = None
+        
+        mock_conn.list_networks.return_value = [mock_network]
+
+        # Test different case variations
+        test_cases = ["down", "Down", "DOWN", "dOwN"]
+        
+        for case_variant in test_cases:
+            mock_conn.reset_mock()
+            neutron_tools = self.get_neutron_tools()
+            result = neutron_tools.get_neutron_networks(status_filter=case_variant)
+            
+            # All should be converted to uppercase
+            mock_conn.list_networks.assert_called_once_with(filters={'status': 'DOWN'})
+
+
 
     def test_create_network_success(self, mock_openstack_connect_neutron):
         """Test creating a network successfully."""
@@ -308,19 +454,7 @@ class TestNeutronTools:
         }
         mock_conn.network.create_network.assert_called_once_with(**expected_args)
 
-    def test_create_network_exception(self, mock_openstack_connect_neutron):
-        """Test create_network when an exception occurs."""
-        mock_conn = mock_openstack_connect_neutron
-        
-        # Configure mock to raise exception
-        mock_conn.network.create_network.side_effect = exceptions.BadRequestException("Invalid network name")
 
-        # Test create_network()
-        neutron_tools = self.get_neutron_tools()
-        
-        # Verify exception is raised
-        with pytest.raises(Exception, match="Failed to create network: Invalid network name"):
-            neutron_tools.create_network(name="invalid-name")
 
     def test_get_network_detail_success(self, mock_openstack_connect_neutron):
         """Test getting network detail successfully."""
@@ -381,19 +515,7 @@ class TestNeutronTools:
         with pytest.raises(Exception, match="Network with ID nonexistent-net not found"):
             neutron_tools.get_network_detail("nonexistent-net")
 
-    def test_get_network_detail_exception(self, mock_openstack_connect_neutron):
-        """Test get_network_detail when an exception occurs."""
-        mock_conn = mock_openstack_connect_neutron
-        
-        # Configure mock to raise exception
-        mock_conn.network.get_network.side_effect = exceptions.HttpException("Connection failed")
 
-        # Test get_network_detail()
-        neutron_tools = self.get_neutron_tools()
-        
-        # Verify exception is raised
-        with pytest.raises(Exception, match="Failed to retrieve network details: Connection failed"):
-            neutron_tools.get_network_detail("some-net-id")
 
     def test_update_network_success(self, mock_openstack_connect_neutron):
         """Test updating a network successfully."""
@@ -514,19 +636,7 @@ class TestNeutronTools:
         # Verify no network update call was made
         mock_conn.network.update_network.assert_not_called()
 
-    def test_update_network_exception(self, mock_openstack_connect_neutron):
-        """Test update_network when an exception occurs."""
-        mock_conn = mock_openstack_connect_neutron
-        
-        # Configure mock to raise exception
-        mock_conn.network.update_network.side_effect = exceptions.NotFoundException("Network not found")
 
-        # Test update_network()
-        neutron_tools = self.get_neutron_tools()
-        
-        # Verify exception is raised
-        with pytest.raises(Exception, match="Failed to update network: Network not found"):
-            neutron_tools.update_network("nonexistent-net", name="new-name")
 
     def test_delete_network_success(self, mock_openstack_connect_neutron):
         """Test deleting a network successfully."""
@@ -544,9 +654,8 @@ class TestNeutronTools:
         neutron_tools = self.get_neutron_tools()
         result = neutron_tools.delete_network("net-delete-123")
         
-        # Verify results
-        expected_message = "Network 'network-to-delete' (ID: net-delete-123) deleted successfully"
-        assert result == expected_message
+        # Verify results (successful deletion returns None)
+        assert result is None
 
         # Verify mock calls
         mock_conn.network.get_network.assert_called_once_with("net-delete-123")
@@ -569,21 +678,4 @@ class TestNeutronTools:
         # Verify delete was not called
         mock_conn.network.delete_network.assert_not_called()
 
-    def test_delete_network_exception(self, mock_openstack_connect_neutron):
-        """Test delete_network when an exception occurs during deletion."""
-        mock_conn = mock_openstack_connect_neutron
-        
-        # Create mock network object for initial get
-        mock_network = Mock()
-        mock_network.name = "network-delete-fail"
-        mock_conn.network.get_network.return_value = mock_network
-        
-        # Configure mock to raise exception during delete
-        mock_conn.network.delete_network.side_effect = exceptions.ConflictException("Network in use")
 
-        # Test delete_network()
-        neutron_tools = self.get_neutron_tools()
-        
-        # Verify exception is raised
-        with pytest.raises(Exception, match="Failed to delete network: Network in use"):
-            neutron_tools.delete_network("net-in-use-123")
