@@ -4,37 +4,40 @@ from unittest.mock import Mock, patch
 
 @pytest.fixture
 def mock_get_openstack_conn():
-    """Mock get_openstack_conn function for nova_tools."""
+    """Mock get_openstack_conn function for compute_tools."""
     mock_conn = Mock()
 
     with patch(
-        "openstack_mcp_server.tools.nova_tools.get_openstack_conn",
-        return_value=mock_conn,
-    ):
+        "openstack_mcp_server.tools.compute_tools.get_openstack_conn",
+        return_value=mock_conn
+    ) as mock_func:
+
         yield mock_conn
 
 
 @pytest.fixture
-def mock_get_openstack_conn_glance():
-    """Mock get_openstack_conn function for glance_tools."""
+def mock_get_openstack_conn_image():
+    """Mock get_openstack_conn function for image_tools."""
     mock_conn = Mock()
 
     with patch(
-        "openstack_mcp_server.tools.glance_tools.get_openstack_conn",
-        return_value=mock_conn,
-    ):
+        "openstack_mcp_server.tools.image_tools.get_openstack_conn",
+        return_value=mock_conn
+    ) as mock_func:
+
         yield mock_conn
 
 
 @pytest.fixture
-def mock_get_openstack_conn_keystone():
-    """Mock get_openstack_conn function for keystone_tools."""
+def mock_get_openstack_conn_identity():
+    """Mock get_openstack_conn function for identity_tools."""
     mock_conn = Mock()
 
     with patch(
-        "openstack_mcp_server.tools.keystone_tools.get_openstack_conn",
-        return_value=mock_conn,
-    ):
+        "openstack_mcp_server.tools.identity_tools.get_openstack_conn",
+        return_value=mock_conn
+    ) as mock_func:
+
         yield mock_conn
 
 
