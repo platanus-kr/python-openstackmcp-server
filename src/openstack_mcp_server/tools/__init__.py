@@ -5,12 +5,13 @@ def register_tool(mcp: FastMCP):
     """
     Register Openstack MCP tools.
     """
-    from .glance_tools import GlanceTools
-    from .keystone_tools import KeystoneTools
+    
+    from .compute_tools import ComputeTools
+    from .identity_tools import IdentityTools
+    from .image_tools import ImageTools
     from .neutron_tools import NeutronTools
-    from .nova_tools import NovaTools
 
-    NovaTools().register_tools(mcp)
-    GlanceTools().register_tools(mcp)
-    KeystoneTools().register_tools(mcp)
+    ComputeTools().register_tools(mcp)
+    ImageTools().register_tools(mcp)
+    IdentityTools().register_tools(mcp)
     NeutronTools().register_tools(mcp)

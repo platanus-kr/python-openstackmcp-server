@@ -1,22 +1,23 @@
-from .base import get_openstack_conn
 from fastmcp import FastMCP
 
+from .base import get_openstack_conn
 
-class GlanceTools:
+
+class ImageTools:
     """
-    A class to encapsulate Nova-related tools and utilities.
+    A class to encapsulate Compute-related tools and utilities.
     """
 
     def register_tools(self, mcp: FastMCP):
         """
-        Register Glance-related tools with the FastMCP instance.
+        Register Image-related tools with the FastMCP instance.
         """
 
-        mcp.tool()(self.get_glance_images)
+        mcp.tool()(self.get_image_images)
 
-    def get_glance_images(self) -> str:
+    def get_image_images(self) -> str:
         """
-        Get the list of Glance images by invoking the registered tool.
+        Get the list of Image images by invoking the registered tool.
 
         :return: A string containing the names, IDs, and statuses of the images.
         """
@@ -27,7 +28,7 @@ class GlanceTools:
         image_list = []
         for image in conn.image.images():
             image_list.append(
-                f"{image.name} ({image.id}) - Status: {image.status}"
+                f"{image.name} ({image.id}) - Status: {image.status}",
             )
 
         return "\n".join(image_list)

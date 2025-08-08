@@ -3,14 +3,14 @@ from .response.keystone import Region
 from fastmcp import FastMCP
 
 
-class KeystoneTools:
+class IdentityTools:
     """
-    A class to encapsulate Keystone-related tools and utilities.
+    A class to encapsulate Identity-related tools and utilities.
     """
 
     def register_tools(self, mcp: FastMCP):
         """
-        Register Keystone-related tools with the FastMCP instance.
+        Register Identity-related tools with the FastMCP instance.
         """
 
         mcp.tool()(self.get_regions)
@@ -21,7 +21,7 @@ class KeystoneTools:
 
     def get_regions(self) -> list[Region]:
         """
-        Get the list of Keystone regions.
+        Get the list of Identity regions.
 
         :return: A list of Region objects representing the regions.
         """
@@ -30,10 +30,11 @@ class KeystoneTools:
         region_list = []
         for region in conn.identity.regions():
             region_list.append(
-                Region(id=region.id, description=region.description)
+                Region(id=region.id, description=region.description),
             )
 
         return region_list
+
 
     def get_region(self, id: str) -> Region:
         """
