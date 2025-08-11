@@ -1,6 +1,7 @@
-import pytest
 from unittest.mock import Mock
+
 from openstack_mcp_server.tools.image_tools import ImageTools
+
 
 class TestImageTools:
     """Test cases for ImageTools class."""
@@ -41,7 +42,6 @@ class TestImageTools:
         """Test getting image images when no images exist."""
         mock_conn = mock_get_openstack_conn_image
 
-
         # Empty image list
         mock_conn.image.images.return_value = []
 
@@ -53,8 +53,10 @@ class TestImageTools:
 
         mock_conn.image.images.assert_called_once()
 
-    def test_get_image_images_with_empty_name(self, mock_get_openstack_conn_image):
-
+    def test_get_image_images_with_empty_name(
+        self,
+        mock_get_openstack_conn_image,
+    ):
         """Test images with empty or None names."""
         mock_conn = mock_get_openstack_conn_image
 

@@ -1,6 +1,8 @@
 from unittest.mock import Mock, call
-from openstack_mcp_server.tools.response.compute import Server
+
 from openstack_mcp_server.tools.compute_tools import ComputeTools
+from openstack_mcp_server.tools.response.compute import Server
+
 
 class TestComputeTools:
     """Test cases for ComputeTools class."""
@@ -76,13 +78,16 @@ class TestComputeTools:
         result = compute_tools.get_compute_servers()
 
         expected_output = [
-            Server(name="test-server", id="single-123", status="BUILDING")
+            Server(name="test-server", id="single-123", status="BUILDING"),
         ]
         assert result == expected_output
 
         mock_conn.compute.servers.assert_called_once()
 
-    def test_get_compute_servers_multiple_statuses(self, mock_get_openstack_conn):
+    def test_get_compute_servers_multiple_statuses(
+        self,
+        mock_get_openstack_conn,
+    ):
         """Test servers with various statuses."""
         mock_conn = mock_get_openstack_conn
 
@@ -119,8 +124,10 @@ class TestComputeTools:
 
         mock_conn.compute.servers.assert_called_once()
 
-    def test_get_compute_servers_with_special_characters(self, mock_get_openstack_conn):
-
+    def test_get_compute_servers_with_special_characters(
+        self,
+        mock_get_openstack_conn,
+    ):
         """Test servers with special characters in names."""
         mock_conn = mock_get_openstack_conn
 
@@ -142,7 +149,9 @@ class TestComputeTools:
 
         assert (
             Server(
-                name="web-server_test-01", id="id-with-dashes", status="ACTIVE"
+                name="web-server_test-01",
+                id="id-with-dashes",
+                status="ACTIVE",
             )
             in result
         )
@@ -162,19 +171,21 @@ class TestComputeTools:
 
         compute_tools = ComputeTools()
         compute_tools.register_tools(mock_mcp)
-        
-        mock_tool_decorator.assert_has_calls([
-            call(compute_tools.get_compute_servers),
-            call(compute_tools.get_compute_server)
-        ])
+
+        mock_tool_decorator.assert_has_calls(
+            [
+                call(compute_tools.get_compute_servers),
+                call(compute_tools.get_compute_server),
+            ],
+        )
         assert mock_tool_decorator.call_count == 2
 
     def test_compute_tools_instantiation(self):
         """Test ComputeTools can be instantiated."""
         compute_tools = ComputeTools()
         assert compute_tools is not None
-        assert hasattr(compute_tools, 'register_tools')
-        assert hasattr(compute_tools, 'get_compute_servers')
+        assert hasattr(compute_tools, "register_tools")
+        assert hasattr(compute_tools, "get_compute_servers")
         assert callable(compute_tools.register_tools)
         assert callable(compute_tools.get_compute_servers)
 
