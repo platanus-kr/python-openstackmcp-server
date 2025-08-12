@@ -10,8 +10,8 @@ from unittest.mock import Mock
 class TestBlockStorageTools:
     """Test cases for BlockStorageTools class."""
 
-    def test_get_block_storage_volumes_success(self, mock_get_openstack_conn_block_storage):
-        """Test getting block storage volumes successfully."""
+    def test_get_volumes_success(self, mock_get_openstack_conn_block_storage):
+        """Test getting volumes successfully."""
         mock_conn = mock_get_openstack_conn_block_storage
 
         # Create mock volume objects
@@ -49,7 +49,7 @@ class TestBlockStorageTools:
 
         # Test BlockStorageTools
         block_storage_tools = BlockStorageTools()
-        result = block_storage_tools.get_block_storage_volumes()
+        result = block_storage_tools.get_volumes()
 
         # Verify results
         assert isinstance(result, list)
@@ -73,17 +73,17 @@ class TestBlockStorageTools:
         # Verify mock calls
         mock_conn.block_storage.volumes.assert_called_once()
 
-    def test_get_block_storage_volumes_empty_list(
+    def test_get_volumes_empty_list(
         self, mock_get_openstack_conn_block_storage
     ):
-        """Test getting block storage volumes when no volumes exist."""
+        """Test getting volumes when no volumes exist."""
         mock_conn = mock_get_openstack_conn_block_storage
 
         # Empty volume list
         mock_conn.block_storage.volumes.return_value = []
 
         block_storage_tools = BlockStorageTools()
-        result = block_storage_tools.get_block_storage_volumes()
+        result = block_storage_tools.get_volumes()
 
         # Verify empty list
         assert isinstance(result, list)
@@ -91,10 +91,10 @@ class TestBlockStorageTools:
 
         mock_conn.block_storage.volumes.assert_called_once()
 
-    def test_get_block_storage_volumes_single_volume(
+    def test_get_volumes_single_volume(
         self, mock_get_openstack_conn_block_storage
     ):
-        """Test getting block storage volumes with a single volume."""
+        """Test getting volumes with a single volume."""
         mock_conn = mock_get_openstack_conn_block_storage
 
         # Single volume
@@ -105,7 +105,7 @@ class TestBlockStorageTools:
         mock_volume.size = 5
         mock_volume.volume_type = None
         mock_volume.availability_zone = "nova"
-        mock_volume.created_at = None
+        mock_volume.created_at = "2024-01-01T12:00:00Z"
         mock_volume.is_bootable = False
         mock_volume.is_encrypted = False
         mock_volume.description = None
@@ -114,7 +114,7 @@ class TestBlockStorageTools:
         mock_conn.block_storage.volumes.return_value = [mock_volume]
 
         block_storage_tools = BlockStorageTools()
-        result = block_storage_tools.get_block_storage_volumes()
+        result = block_storage_tools.get_volumes()
 
         assert isinstance(result, list)
         assert len(result) == 1
@@ -124,7 +124,7 @@ class TestBlockStorageTools:
 
         mock_conn.block_storage.volumes.assert_called_once()
 
-    def test_get_block_storage_volumes_multiple_statuses(
+    def test_get_volumes_multiple_statuses(
         self, mock_get_openstack_conn_block_storage
     ):
         """Test volumes with various statuses."""
@@ -158,7 +158,7 @@ class TestBlockStorageTools:
         mock_conn.block_storage.volumes.return_value = mock_volumes
 
         block_storage_tools = BlockStorageTools()
-        result = block_storage_tools.get_block_storage_volumes()
+        result = block_storage_tools.get_volumes()
 
         # Verify result is a list with correct length
         assert isinstance(result, list)
@@ -174,7 +174,7 @@ class TestBlockStorageTools:
 
         mock_conn.block_storage.volumes.assert_called_once()
 
-    def test_get_block_storage_volumes_with_special_characters(
+    def test_get_volumes_with_special_characters(
         self, mock_get_openstack_conn_block_storage
     ):
         """Test volumes with special characters in names."""
@@ -213,7 +213,7 @@ class TestBlockStorageTools:
         ]
 
         block_storage_tools = BlockStorageTools()
-        result = block_storage_tools.get_block_storage_volumes()
+        result = block_storage_tools.get_volumes()
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -490,7 +490,7 @@ class TestBlockStorageTools:
         # Verify result is None
         assert result is None
         mock_conn.block_storage.delete_volume.assert_called_once_with(
-            "vol-delete", force=False
+            "vol-delete", force=False, ignore_missing=False
         )
 
     def test_delete_volume_force(self, mock_get_openstack_conn_block_storage):
@@ -510,7 +510,7 @@ class TestBlockStorageTools:
         assert result is None
 
         mock_conn.block_storage.delete_volume.assert_called_once_with(
-            "vol-force-delete", force=True
+            "vol-force-delete", force=True, ignore_missing=False
         )
 
     def test_delete_volume_error(self, mock_get_openstack_conn_block_storage):
@@ -582,7 +582,7 @@ class TestBlockStorageTools:
             call[0][0] for call in mock_tool_decorator.call_args_list
         ]
         expected_methods = [
-            block_storage_tools.get_block_storage_volumes,
+            block_storage_tools.get_volumes,
             block_storage_tools.get_volume_details,
             block_storage_tools.create_volume,
             block_storage_tools.delete_volume,
@@ -597,23 +597,23 @@ class TestBlockStorageTools:
         block_storage_tools = BlockStorageTools()
         assert block_storage_tools is not None
         assert hasattr(block_storage_tools, "register_tools")
-        assert hasattr(block_storage_tools, "get_block_storage_volumes")
+        assert hasattr(block_storage_tools, "get_volumes")
         assert hasattr(block_storage_tools, "get_volume_details")
         assert hasattr(block_storage_tools, "create_volume")
         assert hasattr(block_storage_tools, "delete_volume")
         assert hasattr(block_storage_tools, "extend_volume")
         # Verify all methods are callable
         assert callable(block_storage_tools.register_tools)
-        assert callable(block_storage_tools.get_block_storage_volumes)
+        assert callable(block_storage_tools.get_volumes)
         assert callable(block_storage_tools.get_volume_details)
         assert callable(block_storage_tools.create_volume)
         assert callable(block_storage_tools.delete_volume)
         assert callable(block_storage_tools.extend_volume)
 
-    def test_get_block_storage_volumes_docstring(self):
-        """Test that get_block_storage_volumes has proper docstring."""
+    def test_get_volumes_docstring(self):
+        """Test that get_volumes has proper docstring."""
         block_storage_tools = BlockStorageTools()
-        docstring = block_storage_tools.get_block_storage_volumes.__doc__
+        docstring = block_storage_tools.get_volumes.__doc__
 
         assert docstring is not None
         assert "Get the list of Block Storage volumes" in docstring
@@ -628,7 +628,7 @@ class TestBlockStorageTools:
         block_storage_tools = BlockStorageTools()
 
         methods_to_check = [
-            "get_block_storage_volumes",
+            "get_volumes",
             "get_volume_details",
             "create_volume",
             "delete_volume",
