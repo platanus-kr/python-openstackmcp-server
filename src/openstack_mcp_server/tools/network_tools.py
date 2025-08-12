@@ -34,12 +34,28 @@ class NetworkTools:
         mcp.tool()(self.get_port_detail)
         mcp.tool()(self.update_port)
         mcp.tool()(self.delete_port)
+        mcp.tool()(self.add_port_fixed_ip)
+        mcp.tool()(self.remove_port_fixed_ip)
+        mcp.tool()(self.get_port_allowed_address_pairs)
+        mcp.tool()(self.add_port_allowed_address_pair)
+        mcp.tool()(self.remove_port_allowed_address_pair)
+        mcp.tool()(self.set_port_binding)
+        mcp.tool()(self.set_port_admin_state)
+        mcp.tool()(self.toggle_port_admin_state)
         mcp.tool()(self.get_floating_ips)
         mcp.tool()(self.create_floating_ip)
         mcp.tool()(self.allocate_floating_ip_pool_to_project)
         mcp.tool()(self.attach_floating_ip_to_port)
         mcp.tool()(self.detach_floating_ip_from_port)
         mcp.tool()(self.delete_floating_ip)
+        mcp.tool()(self.update_floating_ip_description)
+        mcp.tool()(self.reassign_floating_ip_to_port)
+        mcp.tool()(self.create_floating_ips_bulk)
+        mcp.tool()(self.assign_first_available_floating_ip)
+        mcp.tool()(self.set_subnet_gateway)
+        mcp.tool()(self.clear_subnet_gateway)
+        mcp.tool()(self.set_subnet_dhcp_enabled)
+        mcp.tool()(self.toggle_subnet_dhcp)
 
     def get_networks(
         self,
@@ -233,6 +249,9 @@ class NetworkTools:
         self,
         network_id: str | None = None,
         ip_version: int | None = None,
+        project_id: str | None = None,
+        has_gateway: bool | None = None,
+        is_dhcp_enabled: bool | None = None,
     ) -> list[Subnet]:
         """
         Get the list of Neutron subnets with optional filtering.
@@ -243,7 +262,20 @@ class NetworkTools:
             filters["network_id"] = network_id
         if ip_version is not None:
             filters["ip_version"] = ip_version
+        if project_id:
+            filters["project_id"] = project_id
+        if is_dhcp_enabled is not None:
+            filters["enable_dhcp"] = is_dhcp_enabled
         subnets = conn.list_subnets(filters=filters)
+        if has_gateway is not None:
+            if has_gateway:
+                subnets = [
+                    s for s in subnets if getattr(s, "gateway_ip", None)
+                ]
+            else:
+                subnets = [
+                    s for s in subnets if not getattr(s, "gateway_ip", None)
+                ]
         return [self._convert_to_subnet_model(subnet) for subnet in subnets]
 
     def create_subnet(
@@ -340,6 +372,32 @@ class NetworkTools:
         conn.network.delete_subnet(subnet_id, ignore_missing=False)
         return None
 
+    def set_subnet_gateway(self, subnet_id: str, gateway_ip: str) -> Subnet:
+        conn = get_openstack_conn()
+        subnet = conn.network.update_subnet(subnet_id, gateway_ip=gateway_ip)
+        return self._convert_to_subnet_model(subnet)
+
+    def clear_subnet_gateway(self, subnet_id: str) -> Subnet:
+        conn = get_openstack_conn()
+        subnet = conn.network.update_subnet(subnet_id, gateway_ip=None)
+        return self._convert_to_subnet_model(subnet)
+
+    def set_subnet_dhcp_enabled(self, subnet_id: str, enabled: bool) -> Subnet:
+        conn = get_openstack_conn()
+        subnet = conn.network.update_subnet(subnet_id, enable_dhcp=enabled)
+        return self._convert_to_subnet_model(subnet)
+
+    def toggle_subnet_dhcp(self, subnet_id: str) -> Subnet:
+        conn = get_openstack_conn()
+        current = conn.network.get_subnet(subnet_id)
+        if not current:
+            raise Exception(f"Subnet with ID {subnet_id} not found")
+        subnet = conn.network.update_subnet(
+            subnet_id,
+            enable_dhcp=not bool(current.enable_dhcp),
+        )
+        return self._convert_to_subnet_model(subnet)
+
     def _convert_to_subnet_model(self, openstack_subnet) -> Subnet:
         """
         Convert an OpenStack subnet object to a Subnet pydantic model.
@@ -379,6 +437,149 @@ class NetworkTools:
             filters["network_id"] = network_id
         ports = conn.list_ports(filters=filters)
         return [self._convert_to_port_model(port) for port in ports]
+
+    def add_port_fixed_ip(
+        self,
+        port_id: str,
+        subnet_id: str | None = None,
+        ip_address: str | None = None,
+    ) -> Port:
+        conn = get_openstack_conn()
+        port = conn.network.get_port(port_id)
+        if not port:
+            raise Exception(f"Port with ID {port_id} not found")
+        fixed_ips = list(port.fixed_ips or [])
+        entry: dict = {}
+        if subnet_id is not None:
+            entry["subnet_id"] = subnet_id
+        if ip_address is not None:
+            entry["ip_address"] = ip_address
+        fixed_ips.append(entry)
+        updated = conn.network.update_port(port_id, fixed_ips=fixed_ips)
+        return self._convert_to_port_model(updated)
+
+    def remove_port_fixed_ip(
+        self,
+        port_id: str,
+        ip_address: str | None = None,
+        subnet_id: str | None = None,
+    ) -> Port:
+        conn = get_openstack_conn()
+        port = conn.network.get_port(port_id)
+        if not port:
+            raise Exception(f"Port with ID {port_id} not found")
+        current = list(port.fixed_ips or [])
+        if not current:
+            return self._convert_to_port_model(port)
+
+        def predicate(item: dict) -> bool:
+            if ip_address is not None and item.get("ip_address") == ip_address:
+                return False
+            if subnet_id is not None and item.get("subnet_id") == subnet_id:
+                return False
+            return True
+
+        new_fixed = [fi for fi in current if predicate(fi)]
+        updated = conn.network.update_port(port_id, fixed_ips=new_fixed)
+        return self._convert_to_port_model(updated)
+
+    def get_port_allowed_address_pairs(self, port_id: str) -> list[dict]:
+        conn = get_openstack_conn()
+        port = conn.network.get_port(port_id)
+        if not port:
+            raise Exception(f"Port with ID {port_id} not found")
+        return list(getattr(port, "allowed_address_pairs", []) or [])
+
+    def add_port_allowed_address_pair(
+        self,
+        port_id: str,
+        ip_address: str,
+        mac_address: str | None = None,
+    ) -> Port:
+        conn = get_openstack_conn()
+        port = conn.network.get_port(port_id)
+        if not port:
+            raise Exception(f"Port with ID {port_id} not found")
+        pairs = list(getattr(port, "allowed_address_pairs", []) or [])
+        entry = {"ip_address": ip_address}
+        if mac_address is not None:
+            entry["mac_address"] = mac_address
+        pairs.append(entry)
+        updated = conn.network.update_port(
+            port_id,
+            allowed_address_pairs=pairs,
+        )
+        return self._convert_to_port_model(updated)
+
+    def remove_port_allowed_address_pair(
+        self,
+        port_id: str,
+        ip_address: str,
+        mac_address: str | None = None,
+    ) -> Port:
+        conn = get_openstack_conn()
+        port = conn.network.get_port(port_id)
+        if not port:
+            raise Exception(f"Port with ID {port_id} not found")
+        pairs = list(getattr(port, "allowed_address_pairs", []) or [])
+
+        def keep(p: dict) -> bool:
+            if mac_address is None:
+                return p.get("ip_address") != ip_address
+            return not (
+                p.get("ip_address") == ip_address
+                and p.get("mac_address") == mac_address
+            )
+
+        new_pairs = [p for p in pairs if keep(p)]
+        updated = conn.network.update_port(
+            port_id,
+            allowed_address_pairs=new_pairs,
+        )
+        return self._convert_to_port_model(updated)
+
+    def set_port_binding(
+        self,
+        port_id: str,
+        host_id: str | None = None,
+        vnic_type: str | None = None,
+        profile: dict | None = None,
+    ) -> Port:
+        conn = get_openstack_conn()
+        update_args: dict = {}
+        if host_id is not None:
+            update_args["binding_host_id"] = host_id
+        if vnic_type is not None:
+            update_args["binding_vnic_type"] = vnic_type
+        if profile is not None:
+            update_args["binding_profile"] = profile
+        if not update_args:
+            raise Exception("No update parameters provided")
+        updated = conn.network.update_port(port_id, **update_args)
+        return self._convert_to_port_model(updated)
+
+    def set_port_admin_state(
+        self,
+        port_id: str,
+        is_admin_state_up: bool,
+    ) -> Port:
+        conn = get_openstack_conn()
+        updated = conn.network.update_port(
+            port_id,
+            admin_state_up=is_admin_state_up,
+        )
+        return self._convert_to_port_model(updated)
+
+    def toggle_port_admin_state(self, port_id: str) -> Port:
+        conn = get_openstack_conn()
+        current = conn.network.get_port(port_id)
+        if not current:
+            raise Exception(f"Port with ID {port_id} not found")
+        updated = conn.network.update_port(
+            port_id,
+            admin_state_up=not bool(current.admin_state_up),
+        )
+        return self._convert_to_port_model(updated)
 
     def create_port(
         self,
@@ -486,6 +687,9 @@ class NetworkTools:
         self,
         status_filter: str | None = None,
         project_id: str | None = None,
+        port_id: str | None = None,
+        floating_network_id: str | None = None,
+        unassigned_only: bool | None = None,
     ) -> list[FloatingIP]:
         """
         Get the list of Neutron floating IPs with optional filtering.
@@ -496,7 +700,13 @@ class NetworkTools:
             filters["status"] = status_filter.upper()
         if project_id:
             filters["project_id"] = project_id
+        if port_id:
+            filters["port_id"] = port_id
+        if floating_network_id:
+            filters["floating_network_id"] = floating_network_id
         ips = list(conn.network.ips(**filters))
+        if unassigned_only:
+            ips = [i for i in ips if not getattr(i, "port_id", None)]
         return [self._convert_to_floating_ip_model(ip) for ip in ips]
 
     def create_floating_ip(
@@ -574,6 +784,65 @@ class NetworkTools:
             raise Exception(f"Floating IP with ID {floating_ip_id} not found")
         conn.network.delete_ip(floating_ip_id, ignore_missing=False)
         return None
+
+    def update_floating_ip_description(
+        self,
+        floating_ip_id: str,
+        description: str | None,
+    ) -> FloatingIP:
+        conn = get_openstack_conn()
+        ip = conn.network.update_ip(floating_ip_id, description=description)
+        return self._convert_to_floating_ip_model(ip)
+
+    def reassign_floating_ip_to_port(
+        self,
+        floating_ip_id: str,
+        port_id: str,
+        fixed_ip_address: str | None = None,
+    ) -> FloatingIP:
+        conn = get_openstack_conn()
+        update_args: dict = {"port_id": port_id}
+        if fixed_ip_address is not None:
+            update_args["fixed_ip_address"] = fixed_ip_address
+        ip = conn.network.update_ip(floating_ip_id, **update_args)
+        return self._convert_to_floating_ip_model(ip)
+
+    def create_floating_ips_bulk(
+        self,
+        floating_network_id: str,
+        count: int,
+    ) -> list[FloatingIP]:
+        conn = get_openstack_conn()
+        created = []
+        for _ in range(max(0, count)):
+            ip = conn.network.create_ip(
+                floating_network_id=floating_network_id,
+            )
+            created.append(self._convert_to_floating_ip_model(ip))
+        return created
+
+    def assign_first_available_floating_ip(
+        self,
+        floating_network_id: str,
+        port_id: str,
+    ) -> FloatingIP:
+        conn = get_openstack_conn()
+        existing = list(
+            conn.network.ips(floating_network_id=floating_network_id),
+        )
+        available = next(
+            (i for i in existing if not getattr(i, "port_id", None)),
+            None,
+        )
+        if available is None:
+            created = conn.network.create_ip(
+                floating_network_id=floating_network_id,
+            )
+            target_id = created.id
+        else:
+            target_id = available.id
+        ip = conn.network.update_ip(target_id, port_id=port_id)
+        return self._convert_to_floating_ip_model(ip)
 
     def _convert_to_floating_ip_model(self, openstack_ip) -> FloatingIP:
         """
