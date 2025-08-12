@@ -15,13 +15,13 @@ class BlockStorageTools:
         """
         Register Block Storage-related tools with the FastMCP instance.
         """
-        mcp.tool()(self.get_block_storage_volumes)
+        mcp.tool()(self.get_volumes)
         mcp.tool()(self.get_volume_details)
         mcp.tool()(self.create_volume)
         mcp.tool()(self.delete_volume)
         mcp.tool()(self.extend_volume)
 
-    def get_block_storage_volumes(self) -> list[Volume]:
+    def get_volumes(self) -> list[Volume]:
         """
         Get the list of Block Storage volumes.
 
