@@ -3,7 +3,12 @@ from unittest.mock import Mock
 import pytest
 
 from openstack_mcp_server.tools.network_tools import NetworkTools
-from openstack_mcp_server.tools.response.network import Network
+from openstack_mcp_server.tools.response.network import (
+    FloatingIP,
+    Network,
+    Port,
+    Subnet,
+)
 
 
 class TestNetworkTools:
@@ -509,3 +514,888 @@ class TestNetworkTools:
             network_tools.delete_network("nonexistent-net")
 
         mock_conn.network.delete_network.assert_not_called()
+
+    def test_get_ports_with_filters(self, mock_openstack_connect_network):
+        mock_conn = mock_openstack_connect_network
+
+        port = Mock()
+        port.id = "port-1"
+        port.name = "p1"
+        port.status = "ACTIVE"
+        port.description = None
+        port.project_id = "proj-1"
+        port.network_id = "net-1"
+        port.admin_state_up = True
+        port.device_id = "device-1"
+        port.device_owner = "compute:nova"
+        port.mac_address = "fa:16:3e:00:00:01"
+        port.fixed_ips = [{"subnet_id": "subnet-1", "ip_address": "10.0.0.10"}]
+        port.security_group_ids = ["sg-1", "sg-2"]
+
+        mock_conn.list_ports.return_value = [port]
+
+        tools = self.get_network_tools()
+        result = tools.get_ports(
+            status_filter="ACTIVE",
+            device_id="device-1",
+            network_id="net-1",
+        )
+
+        assert result == [
+            Port(
+                id="port-1",
+                name="p1",
+                status="ACTIVE",
+                description=None,
+                project_id="proj-1",
+                network_id="net-1",
+                is_admin_state_up=True,
+                device_id="device-1",
+                device_owner="compute:nova",
+                mac_address="fa:16:3e:00:00:01",
+                fixed_ips=[
+                    {"subnet_id": "subnet-1", "ip_address": "10.0.0.10"},
+                ],
+                security_group_ids=["sg-1", "sg-2"],
+            ),
+        ]
+
+        mock_conn.list_ports.assert_called_once_with(
+            filters={
+                "status": "ACTIVE",
+                "device_id": "device-1",
+                "network_id": "net-1",
+            },
+        )
+
+    def test_create_port_success(self, mock_openstack_connect_network):
+        mock_conn = mock_openstack_connect_network
+
+        port = Mock()
+        port.id = "port-1"
+        port.name = "p1"
+        port.status = "DOWN"
+        port.description = "desc"
+        port.project_id = "proj-1"
+        port.network_id = "net-1"
+        port.admin_state_up = True
+        port.device_id = None
+        port.device_owner = None
+        port.mac_address = "fa:16:3e:00:00:02"
+        port.fixed_ips = []
+        port.security_group_ids = ["sg-1"]
+
+        mock_conn.network.create_port.return_value = port
+
+        tools = self.get_network_tools()
+        result = tools.create_port(
+            network_id="net-1",
+            name="p1",
+            description="desc",
+            is_admin_state_up=True,
+            fixed_ips=[],
+            security_group_ids=["sg-1"],
+        )
+
+        assert result == Port(
+            id="port-1",
+            name="p1",
+            status="DOWN",
+            description="desc",
+            project_id="proj-1",
+            network_id="net-1",
+            is_admin_state_up=True,
+            device_id=None,
+            device_owner=None,
+            mac_address="fa:16:3e:00:00:02",
+            fixed_ips=[],
+            security_group_ids=["sg-1"],
+        )
+
+        mock_conn.network.create_port.assert_called_once()
+
+    def test_get_port_detail_success(self, mock_openstack_connect_network):
+        mock_conn = mock_openstack_connect_network
+
+        port = Mock()
+        port.id = "port-1"
+        port.name = "p1"
+        port.status = "ACTIVE"
+        port.description = None
+        port.project_id = None
+        port.network_id = "net-1"
+        port.admin_state_up = True
+        port.device_id = None
+        port.device_owner = None
+        port.mac_address = "fa:16:3e:00:00:03"
+        port.fixed_ips = []
+        port.security_group_ids = None
+
+        mock_conn.network.get_port.return_value = port
+
+        tools = self.get_network_tools()
+        result = tools.get_port_detail("port-1")
+        assert result.id == "port-1"
+        mock_conn.network.get_port.assert_called_once_with("port-1")
+
+    def test_get_port_detail_not_found(self, mock_openstack_connect_network):
+        mock_conn = mock_openstack_connect_network
+        mock_conn.network.get_port.return_value = None
+        tools = self.get_network_tools()
+        with pytest.raises(
+            Exception,
+            match="Port with ID p-notfound not found",
+        ):
+            tools.get_port_detail("p-notfound")
+
+    def test_update_port_success(self, mock_openstack_connect_network):
+        mock_conn = mock_openstack_connect_network
+
+        port = Mock()
+        port.id = "port-1"
+        port.name = "p-new"
+        port.status = "ACTIVE"
+        port.description = "d-new"
+        port.project_id = None
+        port.network_id = "net-1"
+        port.admin_state_up = False
+        port.device_id = "dev-2"
+        port.device_owner = None
+        port.mac_address = "fa:16:3e:00:00:04"
+        port.fixed_ips = []
+        port.security_group_ids = ["sg-2"]
+
+        mock_conn.network.update_port.return_value = port
+
+        tools = self.get_network_tools()
+        res = tools.update_port(
+            port_id="port-1",
+            name="p-new",
+            description="d-new",
+            is_admin_state_up=False,
+            device_id="dev-2",
+            security_group_ids=["sg-2"],
+        )
+        assert res.name == "p-new"
+        mock_conn.network.update_port.assert_called_once_with(
+            "port-1",
+            name="p-new",
+            description="d-new",
+            admin_state_up=False,
+            device_id="dev-2",
+            security_groups=["sg-2"],
+        )
+
+    def test_update_port_no_params(self, mock_openstack_connect_network):
+        mock_conn = mock_openstack_connect_network
+        tools = self.get_network_tools()
+        with pytest.raises(Exception, match="No update parameters provided"):
+            tools.update_port("port-1")
+        mock_conn.network.update_port.assert_not_called()
+
+    def test_delete_port_success(self, mock_openstack_connect_network):
+        mock_conn = mock_openstack_connect_network
+
+        port = Mock()
+        port.id = "port-1"
+        mock_conn.network.get_port.return_value = port
+
+        tools = self.get_network_tools()
+        result = tools.delete_port("port-1")
+        assert result is None
+        mock_conn.network.get_port.assert_called_once_with("port-1")
+        mock_conn.network.delete_port.assert_called_once_with(
+            "port-1",
+            ignore_missing=False,
+        )
+
+    def test_delete_port_not_found(self, mock_openstack_connect_network):
+        mock_conn = mock_openstack_connect_network
+        mock_conn.network.get_port.return_value = None
+        tools = self.get_network_tools()
+        with pytest.raises(Exception, match="Port with ID none not found"):
+            tools.delete_port("none")
+        mock_conn.network.delete_port.assert_not_called()
+
+    def test_add_port_fixed_ip(self, mock_openstack_connect_network):
+        mock_conn = mock_openstack_connect_network
+
+        current = Mock()
+        current.fixed_ips = [
+            {"subnet_id": "subnet-1", "ip_address": "10.0.0.10"},
+        ]
+        mock_conn.network.get_port.return_value = current
+
+        updated = Mock()
+        updated.id = "port-1"
+        updated.name = "p1"
+        updated.status = "ACTIVE"
+        updated.description = None
+        updated.project_id = None
+        updated.network_id = "net-1"
+        updated.admin_state_up = True
+        updated.device_id = None
+        updated.device_owner = None
+        updated.mac_address = "fa:16:3e:00:00:05"
+        updated.fixed_ips = [
+            {"subnet_id": "subnet-1", "ip_address": "10.0.0.10"},
+            {"subnet_id": "subnet-2", "ip_address": "10.0.1.10"},
+        ]
+        updated.security_group_ids = None
+        mock_conn.network.update_port.return_value = updated
+
+        tools = self.get_network_tools()
+        res = tools.add_port_fixed_ip(
+            "port-1",
+            subnet_id="subnet-2",
+            ip_address="10.0.1.10",
+        )
+        assert len(res.fixed_ips or []) == 2
+
+    def test_remove_port_fixed_ip(self, mock_openstack_connect_network):
+        mock_conn = mock_openstack_connect_network
+
+        current = Mock()
+        current.fixed_ips = [
+            {"subnet_id": "subnet-1", "ip_address": "10.0.0.10"},
+            {"subnet_id": "subnet-2", "ip_address": "10.0.1.10"},
+        ]
+        mock_conn.network.get_port.return_value = current
+
+        updated = Mock()
+        updated.id = "port-1"
+        updated.name = "p1"
+        updated.status = "ACTIVE"
+        updated.description = None
+        updated.project_id = None
+        updated.network_id = "net-1"
+        updated.admin_state_up = True
+        updated.device_id = None
+        updated.device_owner = None
+        updated.mac_address = "fa:16:3e:00:00:06"
+        updated.fixed_ips = [
+            {"subnet_id": "subnet-1", "ip_address": "10.0.0.10"},
+        ]
+        updated.security_group_ids = None
+        mock_conn.network.update_port.return_value = updated
+
+        tools = self.get_network_tools()
+        res = tools.remove_port_fixed_ip("port-1", ip_address="10.0.1.10")
+        assert len(res.fixed_ips or []) == 1
+
+    def test_get_and_update_allowed_address_pairs(
+        self,
+        mock_openstack_connect_network,
+    ):
+        mock_conn = mock_openstack_connect_network
+
+        port = Mock()
+        port.allowed_address_pairs = []
+        mock_conn.network.get_port.return_value = port
+
+        tools = self.get_network_tools()
+        lst = tools.get_port_allowed_address_pairs("port-1")
+        assert lst == []
+
+        updated = Mock()
+        updated.id = "port-1"
+        updated.name = "p1"
+        updated.status = "ACTIVE"
+        updated.description = None
+        updated.project_id = None
+        updated.network_id = "net-1"
+        updated.admin_state_up = True
+        updated.device_id = None
+        updated.device_owner = None
+        updated.mac_address = "fa:16:3e:00:00:07"
+        updated.fixed_ips = []
+        updated.security_group_ids = None
+        mock_conn.network.update_port.return_value = updated
+
+        res_add = tools.add_port_allowed_address_pair(
+            "port-1",
+            "192.0.2.5",
+            mac_address="aa:bb:cc:dd:ee:ff",
+        )
+        assert isinstance(res_add, Port)
+
+        res_remove = tools.remove_port_allowed_address_pair(
+            "port-1",
+            "192.0.2.5",
+            mac_address="aa:bb:cc:dd:ee:ff",
+        )
+        assert isinstance(res_remove, Port)
+
+    def test_set_port_binding_and_admin_state(
+        self,
+        mock_openstack_connect_network,
+    ):
+        mock_conn = mock_openstack_connect_network
+
+        updated = Mock()
+        updated.id = "port-1"
+        updated.name = "p1"
+        updated.status = "ACTIVE"
+        updated.description = None
+        updated.project_id = None
+        updated.network_id = "net-1"
+        updated.admin_state_up = False
+        updated.device_id = None
+        updated.device_owner = None
+        updated.mac_address = "fa:16:3e:00:00:08"
+        updated.fixed_ips = []
+        updated.security_group_ids = None
+        mock_conn.network.update_port.return_value = updated
+
+        tools = self.get_network_tools()
+        res_bind = tools.set_port_binding(
+            "port-1",
+            host_id="host-1",
+            vnic_type="normal",
+            profile={"key": "val"},
+        )
+        assert isinstance(res_bind, Port)
+
+        res_set = tools.set_port_admin_state("port-1", False)
+        assert res_set.is_admin_state_up is False
+
+        current = Mock()
+        current.admin_state_up = False
+        mock_conn.network.get_port.return_value = current
+        updated.admin_state_up = True
+        res_toggle = tools.toggle_port_admin_state("port-1")
+        assert res_toggle.is_admin_state_up is True
+
+    def test_get_subnets_filters_and_has_gateway_true(
+        self,
+        mock_openstack_connect_network,
+    ):
+        mock_conn = mock_openstack_connect_network
+
+        subnet1 = Mock()
+        subnet1.id = "subnet-1"
+        subnet1.name = "s1"
+        subnet1.status = "ACTIVE"
+        subnet1.description = None
+        subnet1.project_id = "proj-1"
+        subnet1.network_id = "net-1"
+        subnet1.cidr = "10.0.0.0/24"
+        subnet1.ip_version = 4
+        subnet1.gateway_ip = "10.0.0.1"
+        subnet1.enable_dhcp = True
+        subnet1.allocation_pools = []
+        subnet1.dns_nameservers = []
+        subnet1.host_routes = []
+
+        subnet2 = Mock()
+        subnet2.id = "subnet-2"
+        subnet2.name = "s2"
+        subnet2.status = "ACTIVE"
+        subnet2.description = None
+        subnet2.project_id = "proj-2"
+        subnet2.network_id = "net-1"
+        subnet2.cidr = "10.0.1.0/24"
+        subnet2.ip_version = 4
+        subnet2.gateway_ip = None
+        subnet2.enable_dhcp = False
+        subnet2.allocation_pools = []
+        subnet2.dns_nameservers = []
+        subnet2.host_routes = []
+
+        mock_conn.list_subnets.return_value = [subnet1, subnet2]
+
+        tools = self.get_network_tools()
+        result = tools.get_subnets(
+            network_id="net-1",
+            ip_version=4,
+            project_id="proj-1",
+            has_gateway=True,
+            is_dhcp_enabled=True,
+        )
+
+        assert len(result) == 1
+        assert result[0] == Subnet(
+            id="subnet-1",
+            name="s1",
+            status="ACTIVE",
+            description=None,
+            project_id="proj-1",
+            network_id="net-1",
+            cidr="10.0.0.0/24",
+            ip_version=4,
+            gateway_ip="10.0.0.1",
+            is_dhcp_enabled=True,
+            allocation_pools=[],
+            dns_nameservers=[],
+            host_routes=[],
+        )
+
+        mock_conn.list_subnets.assert_called_once_with(
+            filters={
+                "network_id": "net-1",
+                "ip_version": 4,
+                "project_id": "proj-1",
+                "enable_dhcp": True,
+            },
+        )
+
+    def test_get_subnets_has_gateway_false(
+        self,
+        mock_openstack_connect_network,
+    ):
+        mock_conn = mock_openstack_connect_network
+
+        subnet1 = Mock()
+        subnet1.id = "subnet-1"
+        subnet1.name = "s1"
+        subnet1.status = "ACTIVE"
+        subnet1.description = None
+        subnet1.project_id = None
+        subnet1.network_id = "net-1"
+        subnet1.cidr = "10.0.0.0/24"
+        subnet1.ip_version = 4
+        subnet1.gateway_ip = "10.0.0.1"
+        subnet1.enable_dhcp = True
+        subnet1.allocation_pools = []
+        subnet1.dns_nameservers = []
+        subnet1.host_routes = []
+
+        subnet2 = Mock()
+        subnet2.id = "subnet-2"
+        subnet2.name = "s2"
+        subnet2.status = "ACTIVE"
+        subnet2.description = None
+        subnet2.project_id = None
+        subnet2.network_id = "net-1"
+        subnet2.cidr = "10.0.1.0/24"
+        subnet2.ip_version = 4
+        subnet2.gateway_ip = None
+        subnet2.enable_dhcp = False
+        subnet2.allocation_pools = []
+        subnet2.dns_nameservers = []
+        subnet2.host_routes = []
+
+        mock_conn.list_subnets.return_value = [subnet1, subnet2]
+
+        tools = self.get_network_tools()
+        result = tools.get_subnets(
+            network_id="net-1",
+            has_gateway=False,
+        )
+
+        assert len(result) == 1
+        assert result[0].id == "subnet-2"
+
+    def test_create_subnet_success(
+        self,
+        mock_openstack_connect_network,
+    ):
+        mock_conn = mock_openstack_connect_network
+
+        subnet = Mock()
+        subnet.id = "subnet-new"
+        subnet.name = "s-new"
+        subnet.status = "ACTIVE"
+        subnet.description = "desc"
+        subnet.project_id = "proj-1"
+        subnet.network_id = "net-1"
+        subnet.cidr = "10.0.0.0/24"
+        subnet.ip_version = 4
+        subnet.gateway_ip = "10.0.0.1"
+        subnet.enable_dhcp = True
+        subnet.allocation_pools = [{"start": "10.0.0.10", "end": "10.0.0.20"}]
+        subnet.dns_nameservers = ["8.8.8.8"]
+        subnet.host_routes = []
+
+        mock_conn.network.create_subnet.return_value = subnet
+
+        tools = self.get_network_tools()
+        result = tools.create_subnet(
+            network_id="net-1",
+            cidr="10.0.0.0/24",
+            name="s-new",
+            gateway_ip="10.0.0.1",
+            is_dhcp_enabled=True,
+            description="desc",
+            dns_nameservers=["8.8.8.8"],
+            allocation_pools=[{"start": "10.0.0.10", "end": "10.0.0.20"}],
+            host_routes=[],
+        )
+
+        assert result == Subnet(
+            id="subnet-new",
+            name="s-new",
+            status="ACTIVE",
+            description="desc",
+            project_id="proj-1",
+            network_id="net-1",
+            cidr="10.0.0.0/24",
+            ip_version=4,
+            gateway_ip="10.0.0.1",
+            is_dhcp_enabled=True,
+            allocation_pools=[{"start": "10.0.0.10", "end": "10.0.0.20"}],
+            dns_nameservers=["8.8.8.8"],
+            host_routes=[],
+        )
+
+        mock_conn.network.create_subnet.assert_called_once()
+
+    def test_get_subnet_detail_success(
+        self,
+        mock_openstack_connect_network,
+    ):
+        mock_conn = mock_openstack_connect_network
+
+        subnet = Mock()
+        subnet.id = "subnet-1"
+        subnet.name = "s1"
+        subnet.status = "ACTIVE"
+        subnet.description = None
+        subnet.project_id = "proj-1"
+        subnet.network_id = "net-1"
+        subnet.cidr = "10.0.0.0/24"
+        subnet.ip_version = 4
+        subnet.gateway_ip = "10.0.0.1"
+        subnet.enable_dhcp = True
+        subnet.allocation_pools = []
+        subnet.dns_nameservers = []
+        subnet.host_routes = []
+
+        mock_conn.network.get_subnet.return_value = subnet
+
+        tools = self.get_network_tools()
+        result = tools.get_subnet_detail("subnet-1")
+
+        assert result.id == "subnet-1"
+        mock_conn.network.get_subnet.assert_called_once_with("subnet-1")
+
+    def test_get_subnet_detail_not_found(
+        self,
+        mock_openstack_connect_network,
+    ):
+        mock_conn = mock_openstack_connect_network
+        mock_conn.network.get_subnet.return_value = None
+
+        tools = self.get_network_tools()
+        with pytest.raises(
+            Exception,
+            match="Subnet with ID nonexistent not found",
+        ):
+            tools.get_subnet_detail("nonexistent")
+
+    def test_update_subnet_success(
+        self,
+        mock_openstack_connect_network,
+    ):
+        mock_conn = mock_openstack_connect_network
+
+        subnet = Mock()
+        subnet.id = "subnet-1"
+        subnet.name = "s1-new"
+        subnet.status = "ACTIVE"
+        subnet.description = "d-new"
+        subnet.project_id = "proj-1"
+        subnet.network_id = "net-1"
+        subnet.cidr = "10.0.0.0/24"
+        subnet.ip_version = 4
+        subnet.gateway_ip = "10.0.0.254"
+        subnet.enable_dhcp = False
+        subnet.allocation_pools = []
+        subnet.dns_nameservers = []
+        subnet.host_routes = []
+
+        mock_conn.network.update_subnet.return_value = subnet
+
+        tools = self.get_network_tools()
+        result = tools.update_subnet(
+            subnet_id="subnet-1",
+            name="s1-new",
+            description="d-new",
+            gateway_ip="10.0.0.254",
+            is_dhcp_enabled=False,
+        )
+
+        assert result.name == "s1-new"
+        mock_conn.network.update_subnet.assert_called_once_with(
+            "subnet-1",
+            name="s1-new",
+            description="d-new",
+            gateway_ip="10.0.0.254",
+            enable_dhcp=False,
+        )
+
+    def test_update_subnet_no_params(
+        self,
+        mock_openstack_connect_network,
+    ):
+        mock_conn = mock_openstack_connect_network
+        tools = self.get_network_tools()
+        with pytest.raises(Exception, match="No update parameters provided"):
+            tools.update_subnet("subnet-1")
+        mock_conn.network.update_subnet.assert_not_called()
+
+    def test_delete_subnet_success(
+        self,
+        mock_openstack_connect_network,
+    ):
+        mock_conn = mock_openstack_connect_network
+
+        subnet = Mock()
+        subnet.id = "subnet-1"
+        mock_conn.network.get_subnet.return_value = subnet
+
+        tools = self.get_network_tools()
+        result = tools.delete_subnet("subnet-1")
+
+        assert result is None
+        mock_conn.network.get_subnet.assert_called_once_with("subnet-1")
+        mock_conn.network.delete_subnet.assert_called_once_with(
+            "subnet-1",
+            ignore_missing=False,
+        )
+
+    def test_delete_subnet_not_found(
+        self,
+        mock_openstack_connect_network,
+    ):
+        mock_conn = mock_openstack_connect_network
+        mock_conn.network.get_subnet.return_value = None
+
+        tools = self.get_network_tools()
+        with pytest.raises(
+            Exception,
+            match="Subnet with ID no-subnet not found",
+        ):
+            tools.delete_subnet("no-subnet")
+        mock_conn.network.delete_subnet.assert_not_called()
+
+    def test_set_and_clear_subnet_gateway(
+        self,
+        mock_openstack_connect_network,
+    ):
+        mock_conn = mock_openstack_connect_network
+
+        updated = Mock()
+        updated.id = "subnet-1"
+        updated.name = "s1"
+        updated.status = "ACTIVE"
+        updated.description = None
+        updated.project_id = None
+        updated.network_id = "net-1"
+        updated.cidr = "10.0.0.0/24"
+        updated.ip_version = 4
+        updated.gateway_ip = "10.0.0.254"
+        updated.enable_dhcp = True
+        updated.allocation_pools = []
+        updated.dns_nameservers = []
+        updated.host_routes = []
+
+        mock_conn.network.update_subnet.return_value = updated
+
+        tools = self.get_network_tools()
+        res1 = tools.set_subnet_gateway("subnet-1", "10.0.0.254")
+        assert res1.gateway_ip == "10.0.0.254"
+
+        updated.gateway_ip = None
+        res2 = tools.clear_subnet_gateway("subnet-1")
+        assert res2.gateway_ip is None
+
+    def test_set_and_toggle_subnet_dhcp(
+        self,
+        mock_openstack_connect_network,
+    ):
+        mock_conn = mock_openstack_connect_network
+
+        updated = Mock()
+        updated.id = "subnet-1"
+        updated.name = "s1"
+        updated.status = "ACTIVE"
+        updated.description = None
+        updated.project_id = None
+        updated.network_id = "net-1"
+        updated.cidr = "10.0.0.0/24"
+        updated.ip_version = 4
+        updated.gateway_ip = "10.0.0.1"
+        updated.enable_dhcp = True
+        updated.allocation_pools = []
+        updated.dns_nameservers = []
+        updated.host_routes = []
+
+        mock_conn.network.update_subnet.return_value = updated
+
+        tools = self.get_network_tools()
+        res1 = tools.set_subnet_dhcp_enabled("subnet-1", True)
+        assert res1.is_dhcp_enabled is True
+
+        current = Mock()
+        current.enable_dhcp = True
+        mock_conn.network.get_subnet.return_value = current
+        updated.enable_dhcp = False
+        res2 = tools.toggle_subnet_dhcp("subnet-1")
+        assert res2.is_dhcp_enabled is False
+
+    def test_get_floating_ips_with_filters_and_unassigned(
+        self,
+        mock_openstack_connect_network,
+    ):
+        mock_conn = mock_openstack_connect_network
+
+        f1 = Mock()
+        f1.id = "fip-1"
+        f1.name = None
+        f1.status = "DOWN"
+        f1.description = None
+        f1.project_id = "proj-1"
+        f1.floating_ip_address = "203.0.113.10"
+        f1.floating_network_id = "ext-net"
+        f1.fixed_ip_address = None
+        f1.port_id = None
+        f1.router_id = None
+
+        f2 = Mock()
+        f2.id = "fip-2"
+        f2.name = None
+        f2.status = "ACTIVE"
+        f2.description = None
+        f2.project_id = "proj-1"
+        f2.floating_ip_address = "203.0.113.11"
+        f2.floating_network_id = "ext-net"
+        f2.fixed_ip_address = "10.0.0.10"
+        f2.port_id = "port-1"
+        f2.router_id = None
+
+        mock_conn.network.ips.return_value = [f1, f2]
+
+        tools = self.get_network_tools()
+        result = tools.get_floating_ips(
+            status_filter="ACTIVE",
+            project_id="proj-1",
+            floating_network_id="ext-net",
+            unassigned_only=True,
+        )
+        assert result == [
+            FloatingIP(
+                id="fip-1",
+                name=None,
+                status="DOWN",
+                description=None,
+                project_id="proj-1",
+                floating_ip_address="203.0.113.10",
+                floating_network_id="ext-net",
+                fixed_ip_address=None,
+                port_id=None,
+                router_id=None,
+            ),
+        ]
+
+    def test_create_attach_detach_delete_floating_ip(
+        self,
+        mock_openstack_connect_network,
+    ):
+        mock_conn = mock_openstack_connect_network
+
+        fip = Mock()
+        fip.id = "fip-1"
+        fip.name = None
+        fip.status = "DOWN"
+        fip.description = "d"
+        fip.project_id = "proj-1"
+        fip.floating_ip_address = "203.0.113.10"
+        fip.floating_network_id = "ext-net"
+        fip.fixed_ip_address = None
+        fip.port_id = None
+        fip.router_id = None
+        mock_conn.network.create_ip.return_value = fip
+
+        tools = self.get_network_tools()
+        created = tools.create_floating_ip("ext-net", description="d")
+        assert created.floating_network_id == "ext-net"
+
+        updated = Mock()
+        updated.id = "fip-1"
+        updated.name = None
+        updated.status = "ACTIVE"
+        updated.description = "d"
+        updated.project_id = "proj-1"
+        updated.floating_ip_address = "203.0.113.10"
+        updated.floating_network_id = "ext-net"
+        updated.fixed_ip_address = "10.0.0.10"
+        updated.port_id = "port-1"
+        updated.router_id = None
+        mock_conn.network.update_ip.return_value = updated
+
+        attached = tools.attach_floating_ip_to_port(
+            "fip-1",
+            "port-1",
+            fixed_ip_address="10.0.0.10",
+        )
+        assert attached.port_id == "port-1"
+
+        updated.port_id = None
+        detached = tools.detach_floating_ip_from_port("fip-1")
+        assert detached.port_id is None
+
+        mock_conn.network.get_ip.return_value = updated
+        tools.delete_floating_ip("fip-1")
+        mock_conn.network.delete_ip.assert_called_once_with(
+            "fip-1",
+            ignore_missing=False,
+        )
+
+    def test_update_reassign_bulk_and_auto_assign_floating_ip(
+        self,
+        mock_openstack_connect_network,
+    ):
+        mock_conn = mock_openstack_connect_network
+
+        updated = Mock()
+        updated.id = "fip-1"
+        updated.name = None
+        updated.status = "DOWN"
+        updated.description = "new desc"
+        updated.project_id = None
+        updated.floating_ip_address = "203.0.113.10"
+        updated.floating_network_id = "ext-net"
+        updated.fixed_ip_address = None
+        updated.port_id = None
+        updated.router_id = None
+        mock_conn.network.update_ip.return_value = updated
+
+        tools = self.get_network_tools()
+        res_desc = tools.update_floating_ip_description("fip-1", "new desc")
+        assert res_desc.description == "new desc"
+
+        updated.port_id = "port-2"
+        res_reassign = tools.reassign_floating_ip_to_port("fip-1", "port-2")
+        assert res_reassign.port_id == "port-2"
+
+        f1 = Mock()
+        f1.id = "fip-a"
+        f1.name = None
+        f1.status = "DOWN"
+        f1.description = None
+        f1.project_id = None
+        f1.floating_ip_address = "203.0.113.20"
+        f1.floating_network_id = "ext-net"
+        f1.fixed_ip_address = None
+        f1.port_id = None
+        f1.router_id = None
+        mock_conn.network.create_ip.side_effect = [f1]
+        bulk = tools.create_floating_ips_bulk("ext-net", 1)
+        assert len(bulk) == 1
+
+        exists = Mock()
+        exists.id = "fip-b"
+        exists.name = None
+        exists.status = "DOWN"
+        exists.description = None
+        exists.project_id = None
+        exists.floating_ip_address = "203.0.113.21"
+        exists.floating_network_id = "ext-net"
+        exists.fixed_ip_address = None
+        exists.port_id = None
+        exists.router_id = None
+        mock_conn.network.ips.return_value = [exists]
+        mock_conn.network.update_ip.return_value = exists
+        auto = tools.assign_first_available_floating_ip("ext-net", "port-9")
+        assert isinstance(auto, FloatingIP)
