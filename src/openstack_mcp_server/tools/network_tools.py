@@ -65,12 +65,12 @@ class NetworkTools:
         """
         Get the list of Neutron networks with optional filtering.
 
-        Args:
-            status_filter: Filter networks by status (e.g., 'ACTIVE', 'DOWN')
-            shared_only: If True, only show shared networks
-
-        Returns:
-            List of Network objects
+        :param status_filter: Filter networks by status (e.g., `ACTIVE`, `DOWN`)
+        :type status_filter: str | None
+        :param shared_only: If True, only show shared networks
+        :type shared_only: bool
+        :return: List of Network objects
+        :rtype: list[Network]
         """
         conn = get_openstack_conn()
 
@@ -101,17 +101,22 @@ class NetworkTools:
         """
         Create a new Neutron network.
 
-        Args:
-            name: Network name
-            description: Network description
-            is_admin_state_up: Administrative state
-            is_shared: Whether the network is shared
-            provider_network_type: Provider network type (e.g., 'vlan', 'flat', 'vxlan')
-            provider_physical_network: Physical network name
-            provider_segmentation_id: Segmentation ID for VLAN/VXLAN
-
-        Returns:
-            Created Network object
+        :param name: Network name
+        :type name: str
+        :param description: Network description
+        :type description: str | None
+        :param is_admin_state_up: Administrative state
+        :type is_admin_state_up: bool
+        :param is_shared: Whether the network is shared
+        :type is_shared: bool
+        :param provider_network_type: Provider network type (e.g., 'vlan', 'flat', 'vxlan')
+        :type provider_network_type: str | None
+        :param provider_physical_network: Physical network name
+        :type provider_physical_network: str | None
+        :param provider_segmentation_id: Segmentation ID for VLAN/VXLAN
+        :type provider_segmentation_id: int | None
+        :return: Created Network object
+        :rtype: Network
         """
         conn = get_openstack_conn()
 
@@ -143,11 +148,11 @@ class NetworkTools:
         """
         Get detailed information about a specific Neutron network.
 
-        Args:
-            network_id: ID of the network to retrieve
-
-        Returns:
-            Network object with detailed information
+        :param network_id: ID of the network to retrieve
+        :type network_id: str
+        :return: Network details
+        :rtype: Network
+        :raises Exception: If the network is not found
         """
         conn = get_openstack_conn()
 
@@ -168,15 +173,19 @@ class NetworkTools:
         """
         Update an existing Neutron network.
 
-        Args:
-            network_id: ID of the network to update
-            name: New network name
-            description: New network description
-            is_admin_state_up: New administrative state
-            is_shared: New shared state
-
-        Returns:
-            Updated Network object
+        :param network_id: ID of the network to update
+        :type network_id: str
+        :param name: New network name
+        :type name: str | None
+        :param description: New network description
+        :type description: str | None
+        :param is_admin_state_up: New administrative state
+        :type is_admin_state_up: bool | None
+        :param is_shared: New shared state
+        :type is_shared: bool | None
+        :return: Updated Network object
+        :rtype: Network
+        :raises Exception: If no update parameters are provided
         """
         conn = get_openstack_conn()
 
@@ -202,11 +211,11 @@ class NetworkTools:
         """
         Delete a Neutron network.
 
-        Args:
-            network_id: ID of the network to delete
-
-        Returns:
-            None
+        :param network_id: ID of the network to delete
+        :type network_id: str
+        :return: None
+        :rtype: None
+        :raises Exception: If the network is not found
         """
         conn = get_openstack_conn()
 
@@ -222,11 +231,10 @@ class NetworkTools:
         """
         Convert an OpenStack network object to a Network pydantic model.
 
-        Args:
-            openstack_network: OpenStack network object
-
-        Returns:
-            Network pydantic model
+        :param openstack_network: OpenStack network object
+        :type openstack_network: Any
+        :return: Pydantic Network model
+        :rtype: Network
         """
         return Network(
             id=openstack_network.id,
@@ -255,6 +263,19 @@ class NetworkTools:
     ) -> list[Subnet]:
         """
         Get the list of Neutron subnets with optional filtering.
+
+        :param network_id: Filter by network ID
+        :type network_id: str | None
+        :param ip_version: Filter by IP version (e.g., 4, 6)
+        :type ip_version: int | None
+        :param project_id: Filter by project ID
+        :type project_id: str | None
+        :param has_gateway: Filter by whether a gateway is set
+        :type has_gateway: bool | None
+        :param is_dhcp_enabled: Filter by DHCP enabled state
+        :type is_dhcp_enabled: bool | None
+        :return: List of Subnet objects
+        :rtype: list[Subnet]
         """
         conn = get_openstack_conn()
         filters: dict = {}
@@ -293,6 +314,29 @@ class NetworkTools:
     ) -> Subnet:
         """
         Create a new Neutron subnet.
+
+        :param network_id: ID of the parent network
+        :type network_id: str
+        :param cidr: Subnet CIDR
+        :type cidr: str
+        :param name: Subnet name
+        :type name: str | None
+        :param ip_version: IP version
+        :type ip_version: int
+        :param gateway_ip: Gateway IP address
+        :type gateway_ip: str | None
+        :param is_dhcp_enabled: Whether DHCP is enabled
+        :type is_dhcp_enabled: bool
+        :param description: Subnet description
+        :type description: str | None
+        :param dns_nameservers: DNS nameserver list
+        :type dns_nameservers: list[str] | None
+        :param allocation_pools: Allocation pool list
+        :type allocation_pools: list[dict] | None
+        :param host_routes: Static host routes
+        :type host_routes: list[dict] | None
+        :return: Created Subnet object
+        :rtype: Subnet
         """
         conn = get_openstack_conn()
         subnet_args: dict = {
@@ -319,6 +363,12 @@ class NetworkTools:
     def get_subnet_detail(self, subnet_id: str) -> Subnet:
         """
         Get detailed information about a specific Neutron subnet.
+
+        :param subnet_id: ID of the subnet to retrieve
+        :type subnet_id: str
+        :return: Subnet details
+        :rtype: Subnet
+        :raises Exception: If the subnet is not found
         """
         conn = get_openstack_conn()
         subnet = conn.network.get_subnet(subnet_id)
@@ -339,6 +389,26 @@ class NetworkTools:
     ) -> Subnet:
         """
         Update an existing Neutron subnet.
+
+        :param subnet_id: ID of the subnet to update
+        :type subnet_id: str
+        :param name: New subnet name
+        :type name: str | None
+        :param description: New subnet description
+        :type description: str | None
+        :param gateway_ip: New gateway IP
+        :type gateway_ip: str | None
+        :param is_dhcp_enabled: DHCP enabled state
+        :type is_dhcp_enabled: bool | None
+        :param dns_nameservers: DNS nameserver list
+        :type dns_nameservers: list[str] | None
+        :param allocation_pools: Allocation pool list
+        :type allocation_pools: list[dict] | None
+        :param host_routes: Static host routes
+        :type host_routes: list[dict] | None
+        :return: Updated Subnet object
+        :rtype: Subnet
+        :raises Exception: If no update parameters are provided
         """
         conn = get_openstack_conn()
         update_args: dict = {}
@@ -364,6 +434,12 @@ class NetworkTools:
     def delete_subnet(self, subnet_id: str) -> None:
         """
         Delete a Neutron subnet.
+
+        :param subnet_id: ID of the subnet to delete
+        :type subnet_id: str
+        :return: None
+        :rtype: None
+        :raises Exception: If the subnet is not found
         """
         conn = get_openstack_conn()
         subnet = conn.network.get_subnet(subnet_id)
@@ -373,21 +449,58 @@ class NetworkTools:
         return None
 
     def set_subnet_gateway(self, subnet_id: str, gateway_ip: str) -> Subnet:
+        """
+        Set or update a subnet's gateway IP.
+
+        :param subnet_id: Subnet ID
+        :type subnet_id: str
+        :param gateway_ip: Gateway IP to set
+        :type gateway_ip: str
+        :return: Updated Subnet object
+        :rtype: Subnet
+        """
         conn = get_openstack_conn()
         subnet = conn.network.update_subnet(subnet_id, gateway_ip=gateway_ip)
         return self._convert_to_subnet_model(subnet)
 
     def clear_subnet_gateway(self, subnet_id: str) -> Subnet:
+        """
+        Clear a subnet's gateway IP (set to `None`).
+
+        :param subnet_id: Subnet ID
+        :type subnet_id: str
+        :return: Updated Subnet object
+        :rtype: Subnet
+        """
         conn = get_openstack_conn()
         subnet = conn.network.update_subnet(subnet_id, gateway_ip=None)
         return self._convert_to_subnet_model(subnet)
 
     def set_subnet_dhcp_enabled(self, subnet_id: str, enabled: bool) -> Subnet:
+        """
+        Enable or disable DHCP on a subnet.
+
+        :param subnet_id: Subnet ID
+        :type subnet_id: str
+        :param enabled: DHCP enabled state
+        :type enabled: bool
+        :return: Updated Subnet object
+        :rtype: Subnet
+        """
         conn = get_openstack_conn()
         subnet = conn.network.update_subnet(subnet_id, enable_dhcp=enabled)
         return self._convert_to_subnet_model(subnet)
 
     def toggle_subnet_dhcp(self, subnet_id: str) -> Subnet:
+        """
+        Toggle DHCP enabled state for a subnet.
+
+        :param subnet_id: Subnet ID
+        :type subnet_id: str
+        :return: Updated Subnet object
+        :rtype: Subnet
+        :raises Exception: If the subnet is not found
+        """
         conn = get_openstack_conn()
         current = conn.network.get_subnet(subnet_id)
         if not current:
@@ -401,6 +514,11 @@ class NetworkTools:
     def _convert_to_subnet_model(self, openstack_subnet) -> Subnet:
         """
         Convert an OpenStack subnet object to a Subnet pydantic model.
+
+        :param openstack_subnet: OpenStack subnet object
+        :type openstack_subnet: Any
+        :return: Pydantic Subnet model
+        :rtype: Subnet
         """
         return Subnet(
             id=openstack_subnet.id,
@@ -426,6 +544,15 @@ class NetworkTools:
     ) -> list[Port]:
         """
         Get the list of Neutron ports with optional filtering.
+
+        :param status_filter: Filter by port status (e.g., `ACTIVE`, `DOWN`)
+        :type status_filter: str | None
+        :param device_id: Filter by device ID
+        :type device_id: str | None
+        :param network_id: Filter by network ID
+        :type network_id: str | None
+        :return: List of Port objects
+        :rtype: list[Port]
         """
         conn = get_openstack_conn()
         filters: dict = {}
@@ -444,6 +571,19 @@ class NetworkTools:
         subnet_id: str | None = None,
         ip_address: str | None = None,
     ) -> Port:
+        """
+        Add a fixed IP to a port.
+
+        :param port_id: Target port ID
+        :type port_id: str
+        :param subnet_id: Subnet ID of the fixed IP entry
+        :type subnet_id: str | None
+        :param ip_address: Fixed IP address to add
+        :type ip_address: str | None
+        :return: Updated Port object
+        :rtype: Port
+        :raises Exception: If the port is not found
+        """
         conn = get_openstack_conn()
         port = conn.network.get_port(port_id)
         if not port:
@@ -464,6 +604,19 @@ class NetworkTools:
         ip_address: str | None = None,
         subnet_id: str | None = None,
     ) -> Port:
+        """
+        Remove a fixed IP entry from a port.
+
+        :param port_id: Target port ID
+        :type port_id: str
+        :param ip_address: Fixed IP address to remove
+        :type ip_address: str | None
+        :param subnet_id: Subnet ID of the entry to remove
+        :type subnet_id: str | None
+        :return: Updated Port object
+        :rtype: Port
+        :raises Exception: If the port is not found
+        """
         conn = get_openstack_conn()
         port = conn.network.get_port(port_id)
         if not port:
@@ -484,6 +637,15 @@ class NetworkTools:
         return self._convert_to_port_model(updated)
 
     def get_port_allowed_address_pairs(self, port_id: str) -> list[dict]:
+        """
+        Get allowed address pairs configured on a port.
+
+        :param port_id: Port ID
+        :type port_id: str
+        :return: Allowed address pairs
+        :rtype: list[dict]
+        :raises Exception: If the port is not found
+        """
         conn = get_openstack_conn()
         port = conn.network.get_port(port_id)
         if not port:
@@ -496,6 +658,19 @@ class NetworkTools:
         ip_address: str,
         mac_address: str | None = None,
     ) -> Port:
+        """
+        Add an allowed address pair to a port.
+
+        :param port_id: Port ID
+        :type port_id: str
+        :param ip_address: IP address to allow
+        :type ip_address: str
+        :param mac_address: MAC address to allow
+        :type mac_address: str | None
+        :return: Updated Port object
+        :rtype: Port
+        :raises Exception: If the port is not found
+        """
         conn = get_openstack_conn()
         port = conn.network.get_port(port_id)
         if not port:
@@ -517,6 +692,19 @@ class NetworkTools:
         ip_address: str,
         mac_address: str | None = None,
     ) -> Port:
+        """
+        Remove an allowed address pair from a port.
+
+        :param port_id: Port ID
+        :type port_id: str
+        :param ip_address: IP address to remove
+        :type ip_address: str
+        :param mac_address: MAC address to remove. If not provided, remove all pairs with the IP
+        :type mac_address: str | None
+        :return: Updated Port object
+        :rtype: Port
+        :raises Exception: If the port is not found
+        """
         conn = get_openstack_conn()
         port = conn.network.get_port(port_id)
         if not port:
@@ -545,6 +733,21 @@ class NetworkTools:
         vnic_type: str | None = None,
         profile: dict | None = None,
     ) -> Port:
+        """
+        Set binding attributes for a port.
+
+        :param port_id: Port ID
+        :type port_id: str
+        :param host_id: Binding host ID
+        :type host_id: str | None
+        :param vnic_type: VNIC type
+        :type vnic_type: str | None
+        :param profile: Binding profile
+        :type profile: dict | None
+        :return: Updated Port object
+        :rtype: Port
+        :raises Exception: If no update parameters are provided
+        """
         conn = get_openstack_conn()
         update_args: dict = {}
         if host_id is not None:
@@ -563,6 +766,16 @@ class NetworkTools:
         port_id: str,
         is_admin_state_up: bool,
     ) -> Port:
+        """
+        Set the administrative state of a port.
+
+        :param port_id: Port ID
+        :type port_id: str
+        :param is_admin_state_up: Administrative state
+        :type is_admin_state_up: bool
+        :return: Updated Port object
+        :rtype: Port
+        """
         conn = get_openstack_conn()
         updated = conn.network.update_port(
             port_id,
@@ -571,6 +784,15 @@ class NetworkTools:
         return self._convert_to_port_model(updated)
 
     def toggle_port_admin_state(self, port_id: str) -> Port:
+        """
+        Toggle the administrative state of a port.
+
+        :param port_id: Port ID
+        :type port_id: str
+        :return: Updated Port object
+        :rtype: Port
+        :raises Exception: If the port is not found
+        """
         conn = get_openstack_conn()
         current = conn.network.get_port(port_id)
         if not current:
@@ -593,6 +815,23 @@ class NetworkTools:
     ) -> Port:
         """
         Create a new Neutron port.
+
+        :param network_id: ID of the parent network
+        :type network_id: str
+        :param name: Port name
+        :type name: str | None
+        :param description: Port description
+        :type description: str | None
+        :param is_admin_state_up: Administrative state
+        :type is_admin_state_up: bool
+        :param device_id: Device ID
+        :type device_id: str | None
+        :param fixed_ips: Fixed IP list
+        :type fixed_ips: list[dict] | None
+        :param security_group_ids: Security group ID list
+        :type security_group_ids: list[str] | None
+        :return: Created Port object
+        :rtype: Port
         """
         conn = get_openstack_conn()
         port_args: dict = {
@@ -615,6 +854,12 @@ class NetworkTools:
     def get_port_detail(self, port_id: str) -> Port:
         """
         Get detailed information about a specific Neutron port.
+
+        :param port_id: ID of the port to retrieve
+        :type port_id: str
+        :return: Port details
+        :rtype: Port
+        :raises Exception: If the port is not found
         """
         conn = get_openstack_conn()
         port = conn.network.get_port(port_id)
@@ -633,6 +878,22 @@ class NetworkTools:
     ) -> Port:
         """
         Update an existing Neutron port.
+
+        :param port_id: ID of the port to update
+        :type port_id: str
+        :param name: New port name
+        :type name: str | None
+        :param description: New port description
+        :type description: str | None
+        :param is_admin_state_up: Administrative state
+        :type is_admin_state_up: bool | None
+        :param device_id: Device ID
+        :type device_id: str | None
+        :param security_group_ids: Security group ID list
+        :type security_group_ids: list[str] | None
+        :return: Updated Port object
+        :rtype: Port
+        :raises Exception: If no update parameters are provided
         """
         conn = get_openstack_conn()
         update_args: dict = {}
@@ -654,6 +915,12 @@ class NetworkTools:
     def delete_port(self, port_id: str) -> None:
         """
         Delete a Neutron port.
+
+        :param port_id: ID of the port to delete
+        :type port_id: str
+        :return: None
+        :rtype: None
+        :raises Exception: If the port is not found
         """
         conn = get_openstack_conn()
         port = conn.network.get_port(port_id)
@@ -665,6 +932,11 @@ class NetworkTools:
     def _convert_to_port_model(self, openstack_port) -> Port:
         """
         Convert an OpenStack port object to a Port pydantic model.
+
+        :param openstack_port: OpenStack port object
+        :type openstack_port: Any
+        :return: Pydantic Port model
+        :rtype: Port
         """
         return Port(
             id=openstack_port.id,
@@ -693,6 +965,19 @@ class NetworkTools:
     ) -> list[FloatingIP]:
         """
         Get the list of Neutron floating IPs with optional filtering.
+
+        :param status_filter: Filter by IP status (e.g., `ACTIVE`)
+        :type status_filter: str | None
+        :param project_id: Filter by project ID
+        :type project_id: str | None
+        :param port_id: Filter by attached port ID
+        :type port_id: str | None
+        :param floating_network_id: Filter by external network ID
+        :type floating_network_id: str | None
+        :param unassigned_only: If True, return only unassigned IPs
+        :type unassigned_only: bool | None
+        :return: List of FloatingIP objects
+        :rtype: list[FloatingIP]
         """
         conn = get_openstack_conn()
         filters: dict = {}
@@ -719,6 +1004,19 @@ class NetworkTools:
     ) -> FloatingIP:
         """
         Create a new Neutron floating IP.
+
+        :param floating_network_id: External (floating) network ID
+        :type floating_network_id: str
+        :param description: Floating IP description
+        :type description: str | None
+        :param fixed_ip_address: Internal fixed IP to map
+        :type fixed_ip_address: str | None
+        :param port_id: Port ID to attach
+        :type port_id: str | None
+        :param project_id: Project ID
+        :type project_id: str | None
+        :return: Created FloatingIP object
+        :rtype: FloatingIP
         """
         conn = get_openstack_conn()
         ip_args: dict = {"floating_network_id": floating_network_id}
@@ -740,6 +1038,13 @@ class NetworkTools:
     ) -> None:
         """
         Allocate floating IP pool (external network access) to a project via RBAC.
+
+        :param floating_network_id: External network ID
+        :type floating_network_id: str
+        :param project_id: Target project ID
+        :type project_id: str
+        :return: None
+        :rtype: None
         """
         conn = get_openstack_conn()
         conn.network.create_rbac_policy(
@@ -758,6 +1063,15 @@ class NetworkTools:
     ) -> FloatingIP:
         """
         Attach a floating IP to a port.
+
+        :param floating_ip_id: Floating IP ID
+        :type floating_ip_id: str
+        :param port_id: Port ID to attach
+        :type port_id: str
+        :param fixed_ip_address: Specific fixed IP on the port (optional)
+        :type fixed_ip_address: str | None
+        :return: Updated FloatingIP object
+        :rtype: FloatingIP
         """
         conn = get_openstack_conn()
         update_args: dict = {"port_id": port_id}
@@ -769,6 +1083,11 @@ class NetworkTools:
     def detach_floating_ip_from_port(self, floating_ip_id: str) -> FloatingIP:
         """
         Detach a floating IP from its port.
+
+        :param floating_ip_id: Floating IP ID
+        :type floating_ip_id: str
+        :return: Updated FloatingIP object
+        :rtype: FloatingIP
         """
         conn = get_openstack_conn()
         ip = conn.network.update_ip(floating_ip_id, port_id=None)
@@ -777,6 +1096,12 @@ class NetworkTools:
     def delete_floating_ip(self, floating_ip_id: str) -> None:
         """
         Delete a Neutron floating IP.
+
+        :param floating_ip_id: Floating IP ID to delete
+        :type floating_ip_id: str
+        :return: None
+        :rtype: None
+        :raises Exception: If the floating IP is not found
         """
         conn = get_openstack_conn()
         ip = conn.network.get_ip(floating_ip_id)
@@ -790,6 +1115,16 @@ class NetworkTools:
         floating_ip_id: str,
         description: str | None,
     ) -> FloatingIP:
+        """
+        Update a floating IP's description.
+
+        :param floating_ip_id: Floating IP ID
+        :type floating_ip_id: str
+        :param description: New description (`None` to clear)
+        :type description: str | None
+        :return: Updated FloatingIP object
+        :rtype: FloatingIP
+        """
         conn = get_openstack_conn()
         ip = conn.network.update_ip(floating_ip_id, description=description)
         return self._convert_to_floating_ip_model(ip)
@@ -800,6 +1135,18 @@ class NetworkTools:
         port_id: str,
         fixed_ip_address: str | None = None,
     ) -> FloatingIP:
+        """
+        Reassign a floating IP to a different port.
+
+        :param floating_ip_id: Floating IP ID
+        :type floating_ip_id: str
+        :param port_id: New port ID to attach
+        :type port_id: str
+        :param fixed_ip_address: Specific fixed IP on the port (optional)
+        :type fixed_ip_address: str | None
+        :return: Updated Floating IP object
+        :rtype: FloatingIP
+        """
         conn = get_openstack_conn()
         update_args: dict = {"port_id": port_id}
         if fixed_ip_address is not None:
@@ -812,6 +1159,16 @@ class NetworkTools:
         floating_network_id: str,
         count: int,
     ) -> list[FloatingIP]:
+        """
+        Create multiple floating IPs on the specified external network.
+
+        :param floating_network_id: External network ID
+        :type floating_network_id: str
+        :param count: Number of floating IPs to create (negative treated as 0)
+        :type count: int
+        :return: List of created FloatingIP objects
+        :rtype: list[FloatingIP]
+        """
         conn = get_openstack_conn()
         created = []
         for _ in range(max(0, count)):
@@ -826,6 +1183,17 @@ class NetworkTools:
         floating_network_id: str,
         port_id: str,
     ) -> FloatingIP:
+        """
+        Assign the first available floating IP from a network to a port.
+        If none are available, create a new one and assign it.
+
+        :param floating_network_id: External network ID
+        :type floating_network_id: str
+        :param port_id: Target port ID
+        :type port_id: str
+        :return: Updated FloatingIP object
+        :rtype: FloatingIP
+        """
         conn = get_openstack_conn()
         existing = list(
             conn.network.ips(floating_network_id=floating_network_id),
@@ -847,6 +1215,11 @@ class NetworkTools:
     def _convert_to_floating_ip_model(self, openstack_ip) -> FloatingIP:
         """
         Convert an OpenStack floating IP object to a FloatingIP pydantic model.
+
+        :param openstack_ip: OpenStack floating IP object
+        :type openstack_ip: Any
+        :return: Pydantic FloatingIP model
+        :rtype: FloatingIP
         """
         return FloatingIP(
             id=openstack_ip.id,
