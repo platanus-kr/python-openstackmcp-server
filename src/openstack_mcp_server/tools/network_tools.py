@@ -157,9 +157,6 @@ class NetworkTools:
         conn = get_openstack_conn()
 
         network = conn.network.get_network(network_id)
-        if not network:
-            raise Exception(f"Network with ID {network_id} not found")
-
         return self._convert_to_network_model(network)
 
     def update_network(
@@ -201,10 +198,9 @@ class NetworkTools:
             update_args["shared"] = is_shared
 
         if not update_args:
-            raise Exception("No update parameters provided")
-
+            current = conn.network.get_network(network_id)
+            return self._convert_to_network_model(current)
         network = conn.network.update_network(network_id, **update_args)
-
         return self._convert_to_network_model(network)
 
     def delete_network(self, network_id: str) -> None:
@@ -218,11 +214,6 @@ class NetworkTools:
         :raises Exception: If the network is not found
         """
         conn = get_openstack_conn()
-
-        network = conn.network.get_network(network_id)
-        if not network:
-            raise Exception(f"Network with ID {network_id} not found")
-
         conn.network.delete_network(network_id, ignore_missing=False)
 
         return None
@@ -289,14 +280,9 @@ class NetworkTools:
             filters["enable_dhcp"] = is_dhcp_enabled
         subnets = conn.list_subnets(filters=filters)
         if has_gateway is not None:
-            if has_gateway:
-                subnets = [
-                    s for s in subnets if getattr(s, "gateway_ip", None)
-                ]
-            else:
-                subnets = [
-                    s for s in subnets if not getattr(s, "gateway_ip", None)
-                ]
+            subnets = [
+                s for s in subnets if (s.gateway_ip is not None) == has_gateway
+            ]
         return [self._convert_to_subnet_model(subnet) for subnet in subnets]
 
     def create_subnet(
@@ -372,8 +358,6 @@ class NetworkTools:
         """
         conn = get_openstack_conn()
         subnet = conn.network.get_subnet(subnet_id)
-        if not subnet:
-            raise Exception(f"Subnet with ID {subnet_id} not found")
         return self._convert_to_subnet_model(subnet)
 
     def update_subnet(
@@ -427,7 +411,8 @@ class NetworkTools:
         if host_routes is not None:
             update_args["host_routes"] = host_routes
         if not update_args:
-            raise Exception("No update parameters provided")
+            current = conn.network.get_subnet(subnet_id)
+            return self._convert_to_subnet_model(current)
         subnet = conn.network.update_subnet(subnet_id, **update_args)
         return self._convert_to_subnet_model(subnet)
 
@@ -442,9 +427,6 @@ class NetworkTools:
         :raises Exception: If the subnet is not found
         """
         conn = get_openstack_conn()
-        subnet = conn.network.get_subnet(subnet_id)
-        if not subnet:
-            raise Exception(f"Subnet with ID {subnet_id} not found")
         conn.network.delete_subnet(subnet_id, ignore_missing=False)
         return None
 
@@ -503,11 +485,9 @@ class NetworkTools:
         """
         conn = get_openstack_conn()
         current = conn.network.get_subnet(subnet_id)
-        if not current:
-            raise Exception(f"Subnet with ID {subnet_id} not found")
         subnet = conn.network.update_subnet(
             subnet_id,
-            enable_dhcp=not bool(current.enable_dhcp),
+            enable_dhcp=not current.enable_dhcp,
         )
         return self._convert_to_subnet_model(subnet)
 
@@ -586,8 +566,6 @@ class NetworkTools:
         """
         conn = get_openstack_conn()
         port = conn.network.get_port(port_id)
-        if not port:
-            raise Exception(f"Port with ID {port_id} not found")
         fixed_ips = list(port.fixed_ips or [])
         entry: dict = {}
         if subnet_id is not None:
@@ -619,8 +597,6 @@ class NetworkTools:
         """
         conn = get_openstack_conn()
         port = conn.network.get_port(port_id)
-        if not port:
-            raise Exception(f"Port with ID {port_id} not found")
         current = list(port.fixed_ips or [])
         if not current:
             return self._convert_to_port_model(port)
@@ -648,9 +624,7 @@ class NetworkTools:
         """
         conn = get_openstack_conn()
         port = conn.network.get_port(port_id)
-        if not port:
-            raise Exception(f"Port with ID {port_id} not found")
-        return list(getattr(port, "allowed_address_pairs", []) or [])
+        return list(port.allowed_address_pairs or [])
 
     def add_port_allowed_address_pair(
         self,
@@ -673,13 +647,13 @@ class NetworkTools:
         """
         conn = get_openstack_conn()
         port = conn.network.get_port(port_id)
-        if not port:
-            raise Exception(f"Port with ID {port_id} not found")
-        pairs = list(getattr(port, "allowed_address_pairs", []) or [])
+
+        pairs = list(port.allowed_address_pairs or [])
         entry = {"ip_address": ip_address}
         if mac_address is not None:
             entry["mac_address"] = mac_address
         pairs.append(entry)
+
         updated = conn.network.update_port(
             port_id,
             allowed_address_pairs=pairs,
@@ -707,9 +681,7 @@ class NetworkTools:
         """
         conn = get_openstack_conn()
         port = conn.network.get_port(port_id)
-        if not port:
-            raise Exception(f"Port with ID {port_id} not found")
-        pairs = list(getattr(port, "allowed_address_pairs", []) or [])
+        pairs = list(port.allowed_address_pairs or [])
 
         def keep(p: dict) -> bool:
             if mac_address is None:
@@ -757,7 +729,8 @@ class NetworkTools:
         if profile is not None:
             update_args["binding_profile"] = profile
         if not update_args:
-            raise Exception("No update parameters provided")
+            current = conn.network.get_port(port_id)
+            return self._convert_to_port_model(current)
         updated = conn.network.update_port(port_id, **update_args)
         return self._convert_to_port_model(updated)
 
@@ -795,11 +768,9 @@ class NetworkTools:
         """
         conn = get_openstack_conn()
         current = conn.network.get_port(port_id)
-        if not current:
-            raise Exception(f"Port with ID {port_id} not found")
         updated = conn.network.update_port(
             port_id,
-            admin_state_up=not bool(current.admin_state_up),
+            admin_state_up=not current.admin_state_up,
         )
         return self._convert_to_port_model(updated)
 
@@ -863,8 +834,6 @@ class NetworkTools:
         """
         conn = get_openstack_conn()
         port = conn.network.get_port(port_id)
-        if not port:
-            raise Exception(f"Port with ID {port_id} not found")
         return self._convert_to_port_model(port)
 
     def update_port(
@@ -908,7 +877,8 @@ class NetworkTools:
         if security_group_ids is not None:
             update_args["security_groups"] = security_group_ids
         if not update_args:
-            raise Exception("No update parameters provided")
+            current = conn.network.get_port(port_id)
+            return self._convert_to_port_model(current)
         port = conn.network.update_port(port_id, **update_args)
         return self._convert_to_port_model(port)
 
@@ -923,9 +893,6 @@ class NetworkTools:
         :raises Exception: If the port is not found
         """
         conn = get_openstack_conn()
-        port = conn.network.get_port(port_id)
-        if not port:
-            raise Exception(f"Port with ID {port_id} not found")
         conn.network.delete_port(port_id, ignore_missing=False)
         return None
 
@@ -991,7 +958,7 @@ class NetworkTools:
             filters["floating_network_id"] = floating_network_id
         ips = list(conn.network.ips(**filters))
         if unassigned_only:
-            ips = [i for i in ips if not getattr(i, "port_id", None)]
+            ips = [i for i in ips if not i.port_id]
         return [self._convert_to_floating_ip_model(ip) for ip in ips]
 
     def create_floating_ip(
@@ -1104,9 +1071,6 @@ class NetworkTools:
         :raises Exception: If the floating IP is not found
         """
         conn = get_openstack_conn()
-        ip = conn.network.get_ip(floating_ip_id)
-        if not ip:
-            raise Exception(f"Floating IP with ID {floating_ip_id} not found")
         conn.network.delete_ip(floating_ip_id, ignore_missing=False)
         return None
 
@@ -1199,7 +1163,7 @@ class NetworkTools:
             conn.network.ips(floating_network_id=floating_network_id),
         )
         available = next(
-            (i for i in existing if not getattr(i, "port_id", None)),
+            (i for i in existing if not i.port_id),
             None,
         )
         if available is None:

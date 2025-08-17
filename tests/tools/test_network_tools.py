@@ -1,7 +1,5 @@
 from unittest.mock import Mock
 
-import pytest
-
 from openstack_mcp_server.tools.network_tools import NetworkTools
 from openstack_mcp_server.tools.response.network import (
     FloatingIP,
@@ -343,23 +341,6 @@ class TestNetworkTools:
 
         mock_conn.network.get_network.assert_called_once_with("net-detail-123")
 
-    def test_get_network_detail_not_found(
-        self,
-        mock_openstack_connect_network,
-    ):
-        """Test getting network detail when network not found."""
-        mock_conn = mock_openstack_connect_network
-
-        mock_conn.network.get_network.return_value = None
-
-        network_tools = self.get_network_tools()
-
-        with pytest.raises(
-            Exception,
-            match="Network with ID nonexistent-net not found",
-        ):
-            network_tools.get_network_detail("nonexistent-net")
-
     def test_update_network_success(self, mock_openstack_connect_network):
         """Test updating a network successfully."""
         mock_conn = mock_openstack_connect_network
@@ -464,20 +445,6 @@ class TestNetworkTools:
             **expected_args,
         )
 
-    def test_update_network_no_parameters(
-        self,
-        mock_openstack_connect_network,
-    ):
-        """Test updating a network with no parameters provided."""
-        mock_conn = mock_openstack_connect_network
-
-        network_tools = self.get_network_tools()
-
-        with pytest.raises(Exception, match="No update parameters provided"):
-            network_tools.update_network("net-123")
-
-        mock_conn.network.update_network.assert_not_called()
-
     def test_delete_network_success(self, mock_openstack_connect_network):
         """Test deleting a network successfully."""
         mock_conn = mock_openstack_connect_network
@@ -485,7 +452,6 @@ class TestNetworkTools:
         mock_network = Mock()
         mock_network.name = "network-to-delete"
 
-        mock_conn.network.get_network.return_value = mock_network
         mock_conn.network.delete_network.return_value = None
 
         network_tools = self.get_network_tools()
@@ -493,27 +459,10 @@ class TestNetworkTools:
 
         assert result is None
 
-        mock_conn.network.get_network.assert_called_once_with("net-delete-123")
         mock_conn.network.delete_network.assert_called_once_with(
             "net-delete-123",
             ignore_missing=False,
         )
-
-    def test_delete_network_not_found(self, mock_openstack_connect_network):
-        """Test deleting a network when network not found."""
-        mock_conn = mock_openstack_connect_network
-
-        mock_conn.network.get_network.return_value = None
-
-        network_tools = self.get_network_tools()
-
-        with pytest.raises(
-            Exception,
-            match="Network with ID nonexistent-net not found",
-        ):
-            network_tools.delete_network("nonexistent-net")
-
-        mock_conn.network.delete_network.assert_not_called()
 
     def test_get_ports_with_filters(self, mock_openstack_connect_network):
         mock_conn = mock_openstack_connect_network
@@ -638,16 +587,6 @@ class TestNetworkTools:
         assert result.id == "port-1"
         mock_conn.network.get_port.assert_called_once_with("port-1")
 
-    def test_get_port_detail_not_found(self, mock_openstack_connect_network):
-        mock_conn = mock_openstack_connect_network
-        mock_conn.network.get_port.return_value = None
-        tools = self.get_network_tools()
-        with pytest.raises(
-            Exception,
-            match="Port with ID p-notfound not found",
-        ):
-            tools.get_port_detail("p-notfound")
-
     def test_update_port_success(self, mock_openstack_connect_network):
         mock_conn = mock_openstack_connect_network
 
@@ -686,36 +625,20 @@ class TestNetworkTools:
             security_groups=["sg-2"],
         )
 
-    def test_update_port_no_params(self, mock_openstack_connect_network):
-        mock_conn = mock_openstack_connect_network
-        tools = self.get_network_tools()
-        with pytest.raises(Exception, match="No update parameters provided"):
-            tools.update_port("port-1")
-        mock_conn.network.update_port.assert_not_called()
-
     def test_delete_port_success(self, mock_openstack_connect_network):
         mock_conn = mock_openstack_connect_network
 
         port = Mock()
         port.id = "port-1"
-        mock_conn.network.get_port.return_value = port
+        mock_conn.network.delete_port.return_value = None
 
         tools = self.get_network_tools()
         result = tools.delete_port("port-1")
         assert result is None
-        mock_conn.network.get_port.assert_called_once_with("port-1")
         mock_conn.network.delete_port.assert_called_once_with(
             "port-1",
             ignore_missing=False,
         )
-
-    def test_delete_port_not_found(self, mock_openstack_connect_network):
-        mock_conn = mock_openstack_connect_network
-        mock_conn.network.get_port.return_value = None
-        tools = self.get_network_tools()
-        with pytest.raises(Exception, match="Port with ID none not found"):
-            tools.delete_port("none")
-        mock_conn.network.delete_port.assert_not_called()
 
     def test_add_port_fixed_ip(self, mock_openstack_connect_network):
         mock_conn = mock_openstack_connect_network
@@ -1069,20 +992,6 @@ class TestNetworkTools:
         assert result.id == "subnet-1"
         mock_conn.network.get_subnet.assert_called_once_with("subnet-1")
 
-    def test_get_subnet_detail_not_found(
-        self,
-        mock_openstack_connect_network,
-    ):
-        mock_conn = mock_openstack_connect_network
-        mock_conn.network.get_subnet.return_value = None
-
-        tools = self.get_network_tools()
-        with pytest.raises(
-            Exception,
-            match="Subnet with ID nonexistent not found",
-        ):
-            tools.get_subnet_detail("nonexistent")
-
     def test_update_subnet_success(
         self,
         mock_openstack_connect_network,
@@ -1124,16 +1033,6 @@ class TestNetworkTools:
             enable_dhcp=False,
         )
 
-    def test_update_subnet_no_params(
-        self,
-        mock_openstack_connect_network,
-    ):
-        mock_conn = mock_openstack_connect_network
-        tools = self.get_network_tools()
-        with pytest.raises(Exception, match="No update parameters provided"):
-            tools.update_subnet("subnet-1")
-        mock_conn.network.update_subnet.assert_not_called()
-
     def test_delete_subnet_success(
         self,
         mock_openstack_connect_network,
@@ -1142,32 +1041,16 @@ class TestNetworkTools:
 
         subnet = Mock()
         subnet.id = "subnet-1"
-        mock_conn.network.get_subnet.return_value = subnet
+        mock_conn.network.delete_subnet.return_value = None
 
         tools = self.get_network_tools()
         result = tools.delete_subnet("subnet-1")
 
         assert result is None
-        mock_conn.network.get_subnet.assert_called_once_with("subnet-1")
         mock_conn.network.delete_subnet.assert_called_once_with(
             "subnet-1",
             ignore_missing=False,
         )
-
-    def test_delete_subnet_not_found(
-        self,
-        mock_openstack_connect_network,
-    ):
-        mock_conn = mock_openstack_connect_network
-        mock_conn.network.get_subnet.return_value = None
-
-        tools = self.get_network_tools()
-        with pytest.raises(
-            Exception,
-            match="Subnet with ID no-subnet not found",
-        ):
-            tools.delete_subnet("no-subnet")
-        mock_conn.network.delete_subnet.assert_not_called()
 
     def test_set_and_clear_subnet_gateway(
         self,
