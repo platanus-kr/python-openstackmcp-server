@@ -22,6 +22,9 @@ class IdentityTools:
 
         mcp.tool()(self.get_domains)
         mcp.tool()(self.get_domain)
+        mcp.tool()(self.create_domain)
+        mcp.tool()(self.delete_domain)
+        mcp.tool()(self.update_domain)
 
     def get_regions(self) -> list[Region]:
         """
@@ -43,7 +46,7 @@ class IdentityTools:
         """
         Get a region.
 
-        :param id: The ID of the region. (required)
+        :param id: The ID of the region.
 
         :return: The Region object.
         """
@@ -53,12 +56,12 @@ class IdentityTools:
 
         return Region(id=region.id, description=region.description)
 
-    def create_region(self, id: str, description: str = "") -> Region:
+    def create_region(self, id: str, description: str | None = None) -> Region:
         """
         Create a new region.
 
-        :param id: The ID of the region. (required)
-        :param description: The description of the region. (optional)
+        :param id: The ID of the region.
+        :param description: The description of the region.
 
         :return: The created Region object.
         """
@@ -72,7 +75,7 @@ class IdentityTools:
         """
         Delete a region.
 
-        :param id: The ID of the region. (required)
+        :param id: The ID of the region.
 
         :return: None
         """
@@ -83,12 +86,12 @@ class IdentityTools:
 
         return None
 
-    def update_region(self, id: str, description: str = "") -> Region:
+    def update_region(self, id: str, description: str | None = None) -> Region:
         """
         Update a region.
 
-        :param id: The ID of the region. (required)
-        :param description: The string description of the region. (optional)
+        :param id: The ID of the region.
+        :param description: The string description of the region.
 
         :return: The updated Region object.
         """
@@ -124,21 +127,96 @@ class IdentityTools:
             )
         return domain_list
 
-    def get_domain(self, id: str) -> Domain:
+    def get_domain(self, name: str) -> Domain:
         """
         Get a domain.
 
-        :param id: The ID of the domain. (required)
+        :param name: The name of the domain.
 
         :return: The Domain object.
         """
         conn = get_openstack_conn()
 
-        domain = conn.identity.get_domain(domain=id)
+        domain = conn.identity.find_domain(name_or_id=name)
 
         return Domain(
             id=domain.id,
             name=domain.name,
             description=domain.description,
             is_enabled=domain.is_enabled,
+        )
+
+    def create_domain(
+        self,
+        name: str,
+        description: str | None = None,
+        is_enabled: bool | None = False,
+    ) -> Domain:
+        """
+        Create a new domain.
+
+        :param name: The name of the domain.
+        :param description: The description of the domain.
+        :param is_enabled: Whether the domain is enabled.
+        """
+        conn = get_openstack_conn()
+
+        domain = conn.identity.create_domain(
+            name=name,
+            description=description,
+            enabled=is_enabled,
+        )
+
+        return Domain(
+            id=domain.id,
+            name=domain.name,
+            description=domain.description,
+            is_enabled=domain.is_enabled,
+        )
+
+    def delete_domain(self, name: str) -> None:
+        """
+        Delete a domain.
+
+        :param name: The name of the domain.
+        """
+        conn = get_openstack_conn()
+
+        domain = conn.identity.find_domain(name_or_id=name)
+        conn.identity.delete_domain(domain=domain, ignore_missing=False)
+
+        return None
+
+    def update_domain(
+        self,
+        id: str,
+        name: str | None = None,
+        description: str | None = None,
+        is_enabled: bool | None = None,
+    ) -> Domain:
+        """
+        Update a domain.
+
+        :param id: The ID of the domain.
+        :param name: The name of the domain.
+        :param description: The description of the domain.
+        :param is_enabled: Whether the domain is enabled.
+        """
+        conn = get_openstack_conn()
+
+        args = {}
+        if name is not None:
+            args["name"] = name
+        if description is not None:
+            args["description"] = description
+        if is_enabled is not None:
+            args["is_enabled"] = is_enabled
+
+        updated_domain = conn.identity.update_domain(domain=id, **args)
+
+        return Domain(
+            id=updated_domain.id,
+            name=updated_domain.name,
+            description=updated_domain.description,
+            is_enabled=updated_domain.is_enabled,
         )
