@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Any
 
 from fastmcp import FastMCP
@@ -8,6 +9,24 @@ from openstack_mcp_server.tools.response.compute import (
 )
 
 from .base import get_openstack_conn
+
+
+class ServerActionEnum(str, Enum):
+    """available actions without parameter for compute tools"""
+
+    PAUSE = "pause"
+    UNPAUSE = "unpause"
+    SUSPEND = "suspend"
+    RESUME = "resume"
+    LOCK = "lock"
+    UNLOCK = "unlock"
+    RESCUE = "rescue"
+    UNRESCUE = "unrescue"
+    START = "start"
+    STOP = "stop"
+    SHELVE = "shelve"
+    SHELVE_OFFLOAD = "shelve_offload"
+    UNSHELVE = "unshelve"
 
 
 class ComputeTools:
@@ -23,6 +42,7 @@ class ComputeTools:
         mcp.tool()(self.get_server)
         mcp.tool()(self.create_server)
         mcp.tool()(self.get_flavors)
+        mcp.tool()(self.action_server)
 
     def get_servers(self) -> list[Server]:
         """
@@ -102,3 +122,50 @@ class ComputeTools:
         for flavor in conn.compute.flavors():
             flavor_list.append(Flavor(**flavor))
         return flavor_list
+
+    def action_server(self, id: str, action: ServerActionEnum):
+        """
+        Perform an action on a Compute server.
+
+        :param id: The ID of the server.
+        :param action: The action to perform.
+                      Available actions:
+                      - pause: Pauses a server. Changes its status to PAUSED
+                      - unpause: Unpauses a paused server and changes its status to ACTIVE
+                      - suspend: Suspends a server and changes its status to SUSPENDED
+                      - resume: Resumes a suspended server and changes its status to ACTIVE
+                      - lock: Locks a server
+                      - unlock: Unlocks a locked server
+                      - rescue: Puts a server in rescue mode and changes its status to RESCUE
+                      - unrescue: Unrescues a server. Changes status to ACTIVE
+                      - start: Starts a stopped server and changes its status to ACTIVE
+                      - stop: Stops a running server and changes its status to SHUTOFF
+                      - shelve: Shelves a server
+                      - shelve_offload: Shelf-offloads, or removes, a shelved server
+                      - unshelve: Unshelves, or restores, a shelved server
+                      Only above actions are currently supported
+        :raises ValueError: If the action is not supported or invalid(ConflictException).
+        """
+        conn = get_openstack_conn()
+
+        action_methods = {
+            ServerActionEnum.PAUSE: conn.compute.pause_server,
+            ServerActionEnum.UNPAUSE: conn.compute.unpause_server,
+            ServerActionEnum.SUSPEND: conn.compute.suspend_server,
+            ServerActionEnum.RESUME: conn.compute.resume_server,
+            ServerActionEnum.LOCK: conn.compute.lock_server,
+            ServerActionEnum.UNLOCK: conn.compute.unlock_server,
+            ServerActionEnum.RESCUE: conn.compute.rescue_server,
+            ServerActionEnum.UNRESCUE: conn.compute.unrescue_server,
+            ServerActionEnum.START: conn.compute.start_server,
+            ServerActionEnum.STOP: conn.compute.stop_server,
+            ServerActionEnum.SHELVE: conn.compute.shelve_server,
+            ServerActionEnum.SHELVE_OFFLOAD: conn.compute.shelve_offload_server,
+            ServerActionEnum.UNSHELVE: conn.compute.unshelve_server,
+        }
+
+        if action not in action_methods:
+            raise ValueError(f"Unsupported action: {action}")
+
+        action_methods[action](id)
+        return None
