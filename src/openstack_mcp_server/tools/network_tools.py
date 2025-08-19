@@ -11,12 +11,12 @@ from .response.network import (
 
 class NetworkTools:
     """
-    A class to encapsulate Neutron-related tools and utilities.
+    A class to encapsulate Network-related tools and utilities.
     """
 
     def register_tools(self, mcp: FastMCP):
         """
-        Register Neutron-related tools with the FastMCP instance.
+        Register Network-related tools with the FastMCP instance.
         """
 
         mcp.tool()(self.get_networks)
@@ -63,7 +63,7 @@ class NetworkTools:
         shared_only: bool = False,
     ) -> list[Network]:
         """
-        Get the list of Neutron networks with optional filtering.
+        Get the list of Networks with optional filtering.
 
         :param status_filter: Filter networks by status (e.g., `ACTIVE`, `DOWN`)
         :type status_filter: str | None
@@ -99,7 +99,7 @@ class NetworkTools:
         provider_segmentation_id: int | None = None,
     ) -> Network:
         """
-        Create a new Neutron network.
+        Create a new Network.
 
         :param name: Network name
         :type name: str
@@ -146,7 +146,7 @@ class NetworkTools:
 
     def get_network_detail(self, network_id: str) -> Network:
         """
-        Get detailed information about a specific Neutron network.
+        Get detailed information about a specific Network.
 
         :param network_id: ID of the network to retrieve
         :type network_id: str
@@ -168,7 +168,7 @@ class NetworkTools:
         is_shared: bool | None = None,
     ) -> Network:
         """
-        Update an existing Neutron network.
+        Update an existing Network.
 
         :param network_id: ID of the network to update
         :type network_id: str
@@ -205,7 +205,7 @@ class NetworkTools:
 
     def delete_network(self, network_id: str) -> None:
         """
-        Delete a Neutron network.
+        Delete a Network.
 
         :param network_id: ID of the network to delete
         :type network_id: str
@@ -253,7 +253,7 @@ class NetworkTools:
         is_dhcp_enabled: bool | None = None,
     ) -> list[Subnet]:
         """
-        Get the list of Neutron subnets with optional filtering.
+        Get the list of Subnets with optional filtering.
 
         :param network_id: Filter by network ID
         :type network_id: str | None
@@ -299,7 +299,7 @@ class NetworkTools:
         host_routes: list[dict] | None = None,
     ) -> Subnet:
         """
-        Create a new Neutron subnet.
+        Create a new Subnet.
 
         :param network_id: ID of the parent network
         :type network_id: str
@@ -348,7 +348,7 @@ class NetworkTools:
 
     def get_subnet_detail(self, subnet_id: str) -> Subnet:
         """
-        Get detailed information about a specific Neutron subnet.
+        Get detailed information about a specific Subnet.
 
         :param subnet_id: ID of the subnet to retrieve
         :type subnet_id: str
@@ -372,7 +372,7 @@ class NetworkTools:
         host_routes: list[dict] | None = None,
     ) -> Subnet:
         """
-        Update an existing Neutron subnet.
+        Update an existing Subnet.
 
         :param subnet_id: ID of the subnet to update
         :type subnet_id: str
@@ -418,7 +418,7 @@ class NetworkTools:
 
     def delete_subnet(self, subnet_id: str) -> None:
         """
-        Delete a Neutron subnet.
+        Delete a Subnet.
 
         :param subnet_id: ID of the subnet to delete
         :type subnet_id: str
@@ -523,7 +523,7 @@ class NetworkTools:
         network_id: str | None = None,
     ) -> list[Port]:
         """
-        Get the list of Neutron ports with optional filtering.
+        Get the list of Ports with optional filtering.
 
         :param status_filter: Filter by port status (e.g., `ACTIVE`, `DOWN`)
         :type status_filter: str | None
@@ -785,7 +785,7 @@ class NetworkTools:
         security_group_ids: list[str] | None = None,
     ) -> Port:
         """
-        Create a new Neutron port.
+        Create a new Port.
 
         :param network_id: ID of the parent network
         :type network_id: str
@@ -824,7 +824,7 @@ class NetworkTools:
 
     def get_port_detail(self, port_id: str) -> Port:
         """
-        Get detailed information about a specific Neutron port.
+        Get detailed information about a specific Port.
 
         :param port_id: ID of the port to retrieve
         :type port_id: str
@@ -846,7 +846,7 @@ class NetworkTools:
         security_group_ids: list[str] | None = None,
     ) -> Port:
         """
-        Update an existing Neutron port.
+        Update an existing Port.
 
         :param port_id: ID of the port to update
         :type port_id: str
@@ -884,7 +884,7 @@ class NetworkTools:
 
     def delete_port(self, port_id: str) -> None:
         """
-        Delete a Neutron port.
+        Delete a Port.
 
         :param port_id: ID of the port to delete
         :type port_id: str
@@ -898,7 +898,7 @@ class NetworkTools:
 
     def _convert_to_port_model(self, openstack_port) -> Port:
         """
-        Convert an OpenStack port object to a Port pydantic model.
+        Convert an OpenStack Port object to a Port pydantic model.
 
         :param openstack_port: OpenStack port object
         :type openstack_port: Any
@@ -931,7 +931,7 @@ class NetworkTools:
         unassigned_only: bool | None = None,
     ) -> list[FloatingIP]:
         """
-        Get the list of Neutron floating IPs with optional filtering.
+        Get the list of Floating IPs with optional filtering.
 
         :param status_filter: Filter by IP status (e.g., `ACTIVE`)
         :type status_filter: str | None
@@ -970,7 +970,7 @@ class NetworkTools:
         project_id: str | None = None,
     ) -> FloatingIP:
         """
-        Create a new Neutron floating IP.
+        Create a new Floating IP.
 
         :param floating_network_id: External (floating) network ID
         :type floating_network_id: str
@@ -1004,7 +1004,7 @@ class NetworkTools:
         project_id: str,
     ) -> None:
         """
-        Allocate floating IP pool (external network access) to a project via RBAC.
+        Allocate Floating IP pool (external network access) to a project via RBAC.
 
         :param floating_network_id: External network ID
         :type floating_network_id: str
@@ -1029,7 +1029,7 @@ class NetworkTools:
         fixed_ip_address: str | None = None,
     ) -> FloatingIP:
         """
-        Attach a floating IP to a port.
+        Attach a Floating IP to a Port.
 
         :param floating_ip_id: Floating IP ID
         :type floating_ip_id: str
@@ -1049,7 +1049,7 @@ class NetworkTools:
 
     def detach_floating_ip_from_port(self, floating_ip_id: str) -> FloatingIP:
         """
-        Detach a floating IP from its port.
+        Detach a Floating IP from its Port.
 
         :param floating_ip_id: Floating IP ID
         :type floating_ip_id: str
@@ -1062,7 +1062,7 @@ class NetworkTools:
 
     def delete_floating_ip(self, floating_ip_id: str) -> None:
         """
-        Delete a Neutron floating IP.
+        Delete a Floating IP.
 
         :param floating_ip_id: Floating IP ID to delete
         :type floating_ip_id: str
@@ -1080,7 +1080,7 @@ class NetworkTools:
         description: str | None,
     ) -> FloatingIP:
         """
-        Update a floating IP's description.
+        Update a Floating IP's description.
 
         :param floating_ip_id: Floating IP ID
         :type floating_ip_id: str
@@ -1100,7 +1100,7 @@ class NetworkTools:
         fixed_ip_address: str | None = None,
     ) -> FloatingIP:
         """
-        Reassign a floating IP to a different port.
+        Reassign a Floating IP to a different Port.
 
         :param floating_ip_id: Floating IP ID
         :type floating_ip_id: str
