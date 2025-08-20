@@ -37,14 +37,10 @@ class NetworkTools:
         mcp.tool()(self.get_port_detail)
         mcp.tool()(self.update_port)
         mcp.tool()(self.delete_port)
-        mcp.tool()(self.add_port_fixed_ip)
-        mcp.tool()(self.remove_port_fixed_ip)
+
         mcp.tool()(self.get_port_allowed_address_pairs)
-        mcp.tool()(self.add_port_allowed_address_pair)
-        mcp.tool()(self.remove_port_allowed_address_pair)
         mcp.tool()(self.set_port_binding)
-        mcp.tool()(self.set_port_admin_state)
-        mcp.tool()(self.toggle_port_admin_state)
+
         mcp.tool()(self.get_floating_ips)
         mcp.tool()(self.create_floating_ip)
         mcp.tool()(self.attach_floating_ip_to_port)
@@ -430,63 +426,6 @@ class NetworkTools:
         ports = conn.list_ports(filters=filters)
         return [self._convert_to_port_model(port) for port in ports]
 
-    def add_port_fixed_ip(
-        self,
-        port_id: str,
-        subnet_id: str | None = None,
-        ip_address: str | None = None,
-    ) -> Port:
-        """
-        Add a fixed IP to a port.
-
-        :param port_id: Target port ID
-        :param subnet_id: Subnet ID of the fixed IP entry
-        :param ip_address: Fixed IP address to add
-        :return: Updated Port object
-        """
-        conn = get_openstack_conn()
-        port = conn.network.get_port(port_id)
-        fixed_ips = list(port.fixed_ips or [])
-        entry: dict = {}
-        if subnet_id is not None:
-            entry["subnet_id"] = subnet_id
-        if ip_address is not None:
-            entry["ip_address"] = ip_address
-        fixed_ips.append(entry)
-        updated = conn.network.update_port(port_id, fixed_ips=fixed_ips)
-        return self._convert_to_port_model(updated)
-
-    def remove_port_fixed_ip(
-        self,
-        port_id: str,
-        ip_address: str | None = None,
-        subnet_id: str | None = None,
-    ) -> Port:
-        """
-        Remove a fixed IP entry from a port.
-
-        :param port_id: Target port ID
-        :param ip_address: Fixed IP address to remove
-        :param subnet_id: Subnet ID of the entry to remove
-        :return: Updated Port object
-        """
-        conn = get_openstack_conn()
-        port = conn.network.get_port(port_id)
-        current = list(port.fixed_ips or [])
-        if not current:
-            return self._convert_to_port_model(port)
-
-        def predicate(item: dict) -> bool:
-            if ip_address is not None and item.get("ip_address") == ip_address:
-                return False
-            if subnet_id is not None and item.get("subnet_id") == subnet_id:
-                return False
-            return True
-
-        new_fixed = [fi for fi in current if predicate(fi)]
-        updated = conn.network.update_port(port_id, fixed_ips=new_fixed)
-        return self._convert_to_port_model(updated)
-
     def get_port_allowed_address_pairs(self, port_id: str) -> list[dict]:
         """
         Get allowed address pairs configured on a port.
@@ -497,68 +436,6 @@ class NetworkTools:
         conn = get_openstack_conn()
         port = conn.network.get_port(port_id)
         return list(port.allowed_address_pairs or [])
-
-    def add_port_allowed_address_pair(
-        self,
-        port_id: str,
-        ip_address: str,
-        mac_address: str | None = None,
-    ) -> Port:
-        """
-        Add an allowed address pair to a port.
-
-        :param port_id: Port ID
-        :param ip_address: IP address to allow
-        :param mac_address: MAC address to allow
-        :return: Updated Port object
-        """
-        conn = get_openstack_conn()
-        port = conn.network.get_port(port_id)
-
-        pairs = list(port.allowed_address_pairs or [])
-        entry = {"ip_address": ip_address}
-        if mac_address is not None:
-            entry["mac_address"] = mac_address
-        pairs.append(entry)
-
-        updated = conn.network.update_port(
-            port_id,
-            allowed_address_pairs=pairs,
-        )
-        return self._convert_to_port_model(updated)
-
-    def remove_port_allowed_address_pair(
-        self,
-        port_id: str,
-        ip_address: str,
-        mac_address: str | None = None,
-    ) -> Port:
-        """
-        Remove an allowed address pair from a port.
-
-        :param port_id: Port ID
-        :param ip_address: IP address to remove
-        :param mac_address: MAC address to remove. If not provided, remove all pairs with the IP
-        :return: Updated Port object
-        """
-        conn = get_openstack_conn()
-        port = conn.network.get_port(port_id)
-        pairs = list(port.allowed_address_pairs or [])
-
-        def keep(p: dict) -> bool:
-            if mac_address is None:
-                return p.get("ip_address") != ip_address
-            return not (
-                p.get("ip_address") == ip_address
-                and p.get("mac_address") == mac_address
-            )
-
-        new_pairs = [p for p in pairs if keep(p)]
-        updated = conn.network.update_port(
-            port_id,
-            allowed_address_pairs=new_pairs,
-        )
-        return self._convert_to_port_model(updated)
 
     def set_port_binding(
         self,
@@ -588,40 +465,6 @@ class NetworkTools:
             current = conn.network.get_port(port_id)
             return self._convert_to_port_model(current)
         updated = conn.network.update_port(port_id, **update_args)
-        return self._convert_to_port_model(updated)
-
-    def set_port_admin_state(
-        self,
-        port_id: str,
-        is_admin_state_up: bool,
-    ) -> Port:
-        """
-        Set the administrative state of a port.
-
-        :param port_id: Port ID
-        :param is_admin_state_up: Administrative state
-        :return: Updated Port object
-        """
-        conn = get_openstack_conn()
-        updated = conn.network.update_port(
-            port_id,
-            admin_state_up=is_admin_state_up,
-        )
-        return self._convert_to_port_model(updated)
-
-    def toggle_port_admin_state(self, port_id: str) -> Port:
-        """
-        Toggle the administrative state of a port.
-
-        :param port_id: Port ID
-        :return: Updated Port object
-        """
-        conn = get_openstack_conn()
-        current = conn.network.get_port(port_id)
-        updated = conn.network.update_port(
-            port_id,
-            admin_state_up=not current.admin_state_up,
-        )
         return self._convert_to_port_model(updated)
 
     def create_port(
@@ -683,16 +526,37 @@ class NetworkTools:
         is_admin_state_up: bool | None = None,
         device_id: str | None = None,
         security_group_ids: list[str] | None = None,
+        allowed_address_pairs: list[dict] | None = None,
+        fixed_ips: list[dict] | None = None,
     ) -> Port:
         """
-        Update an existing Port.
+        Update an existing Port. Only provided parameters are changed; omitted parameters remain untouched.
+
+        Typical use-cases:
+        - Set admin state down: is_admin_state_up=False
+        - Toggle admin state: read current via get_port_detail() then pass the inverted value
+        - Replace security groups: security_group_ids=["sg-1", "sg-2"]
+        - Replace allowed address pairs:
+          1) current = get_port_allowed_address_pairs(port_id)
+          2) edit the list (append/remove dicts)
+          3) update_port(port_id, allowed_address_pairs=current)
+        - Replace fixed IPs:
+          1) current = get_port_detail(port_id).fixed_ips
+          2) edit the list
+          3) update_port(port_id, fixed_ips=current)
+
+        Notes:
+        - For list-typed fields like security groups or allowed address pairs, this method replaces
+          the entire list with the provided value. To remove all entries, pass an empty list [].
 
         :param port_id: ID of the port to update
         :param name: New port name
         :param description: New port description
         :param is_admin_state_up: Administrative state
         :param device_id: Device ID
-        :param security_group_ids: Security group ID list
+        :param security_group_ids: Security group ID list (replaces entire list)
+        :param allowed_address_pairs: Allowed address pairs (replaces entire list)
+        :param fixed_ips: Fixed IP assignments (replaces entire list)
         :return: Updated Port object
         """
         conn = get_openstack_conn()
@@ -707,6 +571,10 @@ class NetworkTools:
             update_args["device_id"] = device_id
         if security_group_ids is not None:
             update_args["security_groups"] = security_group_ids
+        if allowed_address_pairs is not None:
+            update_args["allowed_address_pairs"] = allowed_address_pairs
+        if fixed_ips is not None:
+            update_args["fixed_ips"] = fixed_ips
         if not update_args:
             current = conn.network.get_port(port_id)
             return self._convert_to_port_model(current)

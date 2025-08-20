@@ -668,11 +668,9 @@ class TestNetworkTools:
         mock_conn.network.update_port.return_value = updated
 
         tools = self.get_network_tools()
-        res = tools.add_port_fixed_ip(
-            "port-1",
-            subnet_id="subnet-2",
-            ip_address="10.0.1.10",
-        )
+        new_fixed = list(current.fixed_ips)
+        new_fixed.append({"subnet_id": "subnet-2", "ip_address": "10.0.1.10"})
+        res = tools.update_port("port-1", fixed_ips=new_fixed)
         assert len(res.fixed_ips or []) == 2
 
     def test_remove_port_fixed_ip(self, mock_openstack_connect_network):
@@ -703,7 +701,10 @@ class TestNetworkTools:
         mock_conn.network.update_port.return_value = updated
 
         tools = self.get_network_tools()
-        res = tools.remove_port_fixed_ip("port-1", ip_address="10.0.1.10")
+        filtered = [
+            fi for fi in current.fixed_ips if fi["ip_address"] != "10.0.1.10"
+        ]
+        res = tools.update_port("port-1", fixed_ips=filtered)
         assert len(res.fixed_ips or []) == 1
 
     def test_get_and_update_allowed_address_pairs(
@@ -735,17 +736,23 @@ class TestNetworkTools:
         updated.security_group_ids = None
         mock_conn.network.update_port.return_value = updated
 
-        res_add = tools.add_port_allowed_address_pair(
-            "port-1",
-            "192.0.2.5",
-            mac_address="aa:bb:cc:dd:ee:ff",
+        pairs = []
+        pairs.append(
+            {"ip_address": "192.0.2.5", "mac_address": "aa:bb:cc:dd:ee:ff"}
         )
+        res_add = tools.update_port("port-1", allowed_address_pairs=pairs)
         assert isinstance(res_add, Port)
 
-        res_remove = tools.remove_port_allowed_address_pair(
-            "port-1",
-            "192.0.2.5",
-            mac_address="aa:bb:cc:dd:ee:ff",
+        filtered = [
+            p
+            for p in pairs
+            if not (
+                p["ip_address"] == "192.0.2.5"
+                and p["mac_address"] == "aa:bb:cc:dd:ee:ff"
+            )
+        ]
+        res_remove = tools.update_port(
+            "port-1", allowed_address_pairs=filtered
         )
         assert isinstance(res_remove, Port)
 
@@ -779,14 +786,16 @@ class TestNetworkTools:
         )
         assert isinstance(res_bind, Port)
 
-        res_set = tools.set_port_admin_state("port-1", False)
+        res_set = tools.update_port("port-1", is_admin_state_up=False)
         assert res_set.is_admin_state_up is False
 
         current = Mock()
         current.admin_state_up = False
         mock_conn.network.get_port.return_value = current
         updated.admin_state_up = True
-        res_toggle = tools.toggle_port_admin_state("port-1")
+        res_toggle = tools.update_port(
+            "port-1", is_admin_state_up=not current.admin_state_up
+        )
         assert res_toggle.is_admin_state_up is True
 
     def test_get_subnets_filters_and_has_gateway_true(
