@@ -603,7 +603,7 @@ class NetworkTools:
             description=openstack_port.description,
             project_id=openstack_port.project_id,
             network_id=openstack_port.network_id,
-            is_admin_state_up=openstack_port.admin_state_up,
+            is_admin_state_up=openstack_port.is_admin_state_up,
             device_id=openstack_port.device_id,
             device_owner=openstack_port.device_owner,
             mac_address=openstack_port.mac_address,

@@ -475,6 +475,7 @@ class TestNetworkTools:
         port.project_id = "proj-1"
         port.network_id = "net-1"
         port.admin_state_up = True
+        port.is_admin_state_up = True
         port.device_id = "device-1"
         port.device_owner = "compute:nova"
         port.mac_address = "fa:16:3e:00:00:01"
@@ -528,6 +529,7 @@ class TestNetworkTools:
         port.project_id = "proj-1"
         port.network_id = "net-1"
         port.admin_state_up = True
+        port.is_admin_state_up = True
         port.device_id = None
         port.device_owner = None
         port.mac_address = "fa:16:3e:00:00:02"
@@ -574,6 +576,7 @@ class TestNetworkTools:
         port.project_id = None
         port.network_id = "net-1"
         port.admin_state_up = True
+        port.is_admin_state_up = True
         port.device_id = None
         port.device_owner = None
         port.mac_address = "fa:16:3e:00:00:03"
@@ -598,6 +601,7 @@ class TestNetworkTools:
         port.project_id = None
         port.network_id = "net-1"
         port.admin_state_up = False
+        port.is_admin_state_up = False
         port.device_id = "dev-2"
         port.device_owner = None
         port.mac_address = "fa:16:3e:00:00:04"
@@ -657,6 +661,7 @@ class TestNetworkTools:
         updated.project_id = None
         updated.network_id = "net-1"
         updated.admin_state_up = True
+        updated.is_admin_state_up = True
         updated.device_id = None
         updated.device_owner = None
         updated.mac_address = "fa:16:3e:00:00:05"
@@ -691,6 +696,7 @@ class TestNetworkTools:
         updated.project_id = None
         updated.network_id = "net-1"
         updated.admin_state_up = True
+        updated.is_admin_state_up = True
         updated.device_id = None
         updated.device_owner = None
         updated.mac_address = "fa:16:3e:00:00:06"
@@ -729,6 +735,7 @@ class TestNetworkTools:
         updated.project_id = None
         updated.network_id = "net-1"
         updated.admin_state_up = True
+        updated.is_admin_state_up = True
         updated.device_id = None
         updated.device_owner = None
         updated.mac_address = "fa:16:3e:00:00:07"
@@ -769,7 +776,7 @@ class TestNetworkTools:
         updated.description = None
         updated.project_id = None
         updated.network_id = "net-1"
-        updated.admin_state_up = False
+        updated.is_admin_state_up = False
         updated.device_id = None
         updated.device_owner = None
         updated.mac_address = "fa:16:3e:00:00:08"
@@ -790,9 +797,9 @@ class TestNetworkTools:
         assert res_set.is_admin_state_up is False
 
         current = Mock()
-        current.admin_state_up = False
+        current.is_admin_state_up = False
         mock_conn.network.get_port.return_value = current
-        updated.admin_state_up = True
+        updated.is_admin_state_up = True
         res_toggle = tools.update_port(
             "port-1", is_admin_state_up=not current.admin_state_up
         )
