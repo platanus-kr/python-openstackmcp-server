@@ -37,17 +37,12 @@ class NetworkTools:
         mcp.tool()(self.get_port_detail)
         mcp.tool()(self.update_port)
         mcp.tool()(self.delete_port)
-
         mcp.tool()(self.get_port_allowed_address_pairs)
         mcp.tool()(self.set_port_binding)
-
         mcp.tool()(self.get_floating_ips)
         mcp.tool()(self.create_floating_ip)
-        mcp.tool()(self.attach_floating_ip_to_port)
-        mcp.tool()(self.detach_floating_ip_from_port)
         mcp.tool()(self.delete_floating_ip)
-        mcp.tool()(self.update_floating_ip_description)
-        mcp.tool()(self.reassign_floating_ip_to_port)
+        mcp.tool()(self.update_floating_ip)
         mcp.tool()(self.create_floating_ips_bulk)
         mcp.tool()(self.assign_first_available_floating_ip)
 
@@ -701,15 +696,46 @@ class NetworkTools:
         ip = conn.network.update_ip(floating_ip_id, **update_args)
         return self._convert_to_floating_ip_model(ip)
 
-    def detach_floating_ip_from_port(self, floating_ip_id: str) -> FloatingIP:
+    def update_floating_ip(
+        self,
+        floating_ip_id: str,
+        description: str | None | object = _UNSET,
+        port_id: str | None | object = _UNSET,
+        fixed_ip_address: str | None | object = _UNSET,
+    ) -> FloatingIP:
         """
-        Detach a Floating IP from its Port.
+        Update Floating IP attributes. Only provided parameters are changed; omitted
+        parameters remain untouched.
 
-        :param floating_ip_id: Floating IP ID
+        Typical use-cases:
+        - Attach to a port: port_id="port-1" (optionally fixed_ip_address="10.0.0.10").
+        - Detach from its port: port_id=None.
+        - Update description: description="new desc" or clear with description=None.
+        - Reassign to another port: port_id="new-port" (optionally with fixed_ip_address).
+
+        Notes:
+        - Passing None for description clears it.
+        - Passing None for port_id detaches the address from any port.
+        - fixed_ip_address is optional and can be provided alongside port_id.
+
+        :param floating_ip_id: Floating IP ID to update
+        :param description: New description or None to clear
+        :param port_id: Port ID to attach; None to detach; omit to keep unchanged
+        :param fixed_ip_address: Specific fixed IP to map; omit to keep unchanged
         :return: Updated FloatingIP object
         """
         conn = get_openstack_conn()
-        ip = conn.network.update_ip(floating_ip_id, port_id=None)
+        update_args: dict = {}
+        if description is not _UNSET:
+            update_args["description"] = description
+        if port_id is not _UNSET:
+            update_args["port_id"] = port_id
+        if fixed_ip_address is not _UNSET:
+            update_args["fixed_ip_address"] = fixed_ip_address
+        if not update_args:
+            current = conn.network.get_ip(floating_ip_id)
+            return self._convert_to_floating_ip_model(current)
+        ip = conn.network.update_ip(floating_ip_id, **update_args)
         return self._convert_to_floating_ip_model(ip)
 
     def delete_floating_ip(self, floating_ip_id: str) -> None:
@@ -722,43 +748,6 @@ class NetworkTools:
         conn = get_openstack_conn()
         conn.network.delete_ip(floating_ip_id, ignore_missing=False)
         return None
-
-    def update_floating_ip_description(
-        self,
-        floating_ip_id: str,
-        description: str | None,
-    ) -> FloatingIP:
-        """
-        Update a Floating IP's description.
-
-        :param floating_ip_id: Floating IP ID
-        :param description: New description (`None` to clear)
-        :return: Updated FloatingIP object
-        """
-        conn = get_openstack_conn()
-        ip = conn.network.update_ip(floating_ip_id, description=description)
-        return self._convert_to_floating_ip_model(ip)
-
-    def reassign_floating_ip_to_port(
-        self,
-        floating_ip_id: str,
-        port_id: str,
-        fixed_ip_address: str | None = None,
-    ) -> FloatingIP:
-        """
-        Reassign a Floating IP to a different Port.
-
-        :param floating_ip_id: Floating IP ID
-        :param port_id: New port ID to attach
-        :param fixed_ip_address: Specific fixed IP on the port (optional)
-        :return: Updated Floating IP object
-        """
-        conn = get_openstack_conn()
-        update_args: dict = {"port_id": port_id}
-        if fixed_ip_address is not None:
-            update_args["fixed_ip_address"] = fixed_ip_address
-        ip = conn.network.update_ip(floating_ip_id, **update_args)
-        return self._convert_to_floating_ip_model(ip)
 
     def create_floating_ips_bulk(
         self,

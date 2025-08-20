@@ -1213,15 +1213,15 @@ class TestNetworkTools:
         updated.router_id = None
         mock_conn.network.update_ip.return_value = updated
 
-        attached = tools.attach_floating_ip_to_port(
+        attached = tools.update_floating_ip(
             "fip-1",
-            "port-1",
+            port_id="port-1",
             fixed_ip_address="10.0.0.10",
         )
         assert attached.port_id == "port-1"
 
         updated.port_id = None
-        detached = tools.detach_floating_ip_from_port("fip-1")
+        detached = tools.update_floating_ip("fip-1", port_id=None)
         assert detached.port_id is None
 
         mock_conn.network.get_ip.return_value = updated
@@ -1251,11 +1251,11 @@ class TestNetworkTools:
         mock_conn.network.update_ip.return_value = updated
 
         tools = self.get_network_tools()
-        res_desc = tools.update_floating_ip_description("fip-1", "new desc")
+        res_desc = tools.update_floating_ip("fip-1", description="new desc")
         assert res_desc.description == "new desc"
 
         updated.port_id = "port-2"
-        res_reassign = tools.reassign_floating_ip_to_port("fip-1", "port-2")
+        res_reassign = tools.update_floating_ip("fip-1", port_id="port-2")
         assert res_reassign.port_id == "port-2"
 
         f1 = Mock()
