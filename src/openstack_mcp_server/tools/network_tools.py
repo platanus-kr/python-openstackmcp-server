@@ -44,7 +44,6 @@ class NetworkTools:
         mcp.tool()(self.toggle_port_admin_state)
         mcp.tool()(self.get_floating_ips)
         mcp.tool()(self.create_floating_ip)
-        mcp.tool()(self.allocate_floating_ip_pool_to_project)
         mcp.tool()(self.attach_floating_ip_to_port)
         mcp.tool()(self.detach_floating_ip_from_port)
         mcp.tool()(self.delete_floating_ip)
@@ -418,7 +417,7 @@ class NetworkTools:
         current = conn.network.get_subnet(subnet_id)
         subnet = conn.network.update_subnet(
             subnet_id,
-            enable_dhcp=not current.enable_dhcp,
+            enable_dhcp=False if current.enable_dhcp else True,
         )
         return self._convert_to_subnet_model(subnet)
 
@@ -851,27 +850,6 @@ class NetworkTools:
             ip_args["project_id"] = project_id
         ip = conn.network.create_ip(**ip_args)
         return self._convert_to_floating_ip_model(ip)
-
-    def allocate_floating_ip_pool_to_project(
-        self,
-        floating_network_id: str,
-        project_id: str,
-    ) -> None:
-        """
-        Allocate Floating IP pool (external network access) to a project via RBAC.
-
-        :param floating_network_id: External network ID
-        :param project_id: Target project ID
-        :return: None
-        """
-        conn = get_openstack_conn()
-        conn.network.create_rbac_policy(
-            object_type="network",
-            object_id=floating_network_id,
-            action="access_as_external",
-            target_project_id=project_id,
-        )
-        return None
 
     def attach_floating_ip_to_port(
         self,
