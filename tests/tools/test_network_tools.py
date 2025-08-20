@@ -1076,11 +1076,11 @@ class TestNetworkTools:
         mock_conn.network.update_subnet.return_value = updated
 
         tools = self.get_network_tools()
-        res1 = tools.set_subnet_gateway("subnet-1", "10.0.0.254")
+        res1 = tools.update_subnet("subnet-1", gateway_ip="10.0.0.254")
         assert res1.gateway_ip == "10.0.0.254"
 
         updated.gateway_ip = None
-        res2 = tools.clear_subnet_gateway("subnet-1")
+        res2 = tools.update_subnet("subnet-1", gateway_ip=None)
         assert res2.gateway_ip is None
 
     def test_set_and_toggle_subnet_dhcp(
@@ -1107,14 +1107,11 @@ class TestNetworkTools:
         mock_conn.network.update_subnet.return_value = updated
 
         tools = self.get_network_tools()
-        res1 = tools.set_subnet_dhcp_enabled("subnet-1", True)
+        res1 = tools.update_subnet("subnet-1", is_dhcp_enabled=True)
         assert res1.is_dhcp_enabled is True
 
-        current = Mock()
-        current.enable_dhcp = True
-        mock_conn.network.get_subnet.return_value = current
         updated.enable_dhcp = False
-        res2 = tools.toggle_subnet_dhcp("subnet-1")
+        res2 = tools.update_subnet("subnet-1", is_dhcp_enabled=False)
         assert res2.is_dhcp_enabled is False
 
     def test_get_floating_ips_with_filters_and_unassigned(

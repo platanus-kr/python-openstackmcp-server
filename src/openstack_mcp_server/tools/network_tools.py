@@ -9,6 +9,9 @@ from .response.network import (
 )
 
 
+_UNSET = object()
+
+
 class NetworkTools:
     """
     A class to encapsulate Network-related tools and utilities.
@@ -51,10 +54,6 @@ class NetworkTools:
         mcp.tool()(self.reassign_floating_ip_to_port)
         mcp.tool()(self.create_floating_ips_bulk)
         mcp.tool()(self.assign_first_available_floating_ip)
-        mcp.tool()(self.set_subnet_gateway)
-        mcp.tool()(self.clear_subnet_gateway)
-        mcp.tool()(self.set_subnet_dhcp_enabled)
-        mcp.tool()(self.toggle_subnet_dhcp)
 
     def get_networks(
         self,
@@ -319,14 +318,26 @@ class NetworkTools:
         subnet_id: str,
         name: str | None = None,
         description: str | None = None,
-        gateway_ip: str | None = None,
+        gateway_ip: str | None | object = _UNSET,
         is_dhcp_enabled: bool | None = None,
         dns_nameservers: list[str] | None = None,
         allocation_pools: list[dict] | None = None,
         host_routes: list[dict] | None = None,
     ) -> Subnet:
         """
-        Update an existing Subnet.
+        Update subnet attributes atomically. Only provided parameters are changed; omitted
+        parameters remain untouched.
+
+        Typical use-cases:
+        - Set gateway: pass gateway_ip="10.0.0.1".
+        - Clear gateway: pass gateway_ip=None.
+        - Enable/disable DHCP: pass is_dhcp_enabled=True or False.
+        - Batch updates: change name/description and DNS nameservers together.
+
+        Notes:
+        - OpenStack Neutron supports partial updates. Passing None for gateway_ip clears the gateway.
+        - To emulate a DHCP toggle, read current state and invert it, then call this method with
+          is_dhcp_enabled set accordingly.
 
         :param subnet_id: ID of the subnet to update
         :param name: New subnet name
@@ -344,7 +355,7 @@ class NetworkTools:
             update_args["name"] = name
         if description is not None:
             update_args["description"] = description
-        if gateway_ip is not None:
+        if gateway_ip is not _UNSET:
             update_args["gateway_ip"] = gateway_ip
         if is_dhcp_enabled is not None:
             update_args["enable_dhcp"] = is_dhcp_enabled
@@ -370,56 +381,6 @@ class NetworkTools:
         conn = get_openstack_conn()
         conn.network.delete_subnet(subnet_id, ignore_missing=False)
         return None
-
-    def set_subnet_gateway(self, subnet_id: str, gateway_ip: str) -> Subnet:
-        """
-        Set or update a subnet's gateway IP.
-
-        :param subnet_id: Subnet ID
-        :param gateway_ip: Gateway IP to set
-        :return: Updated Subnet object
-        """
-        conn = get_openstack_conn()
-        subnet = conn.network.update_subnet(subnet_id, gateway_ip=gateway_ip)
-        return self._convert_to_subnet_model(subnet)
-
-    def clear_subnet_gateway(self, subnet_id: str) -> Subnet:
-        """
-        Clear a subnet's gateway IP (set to `None`).
-
-        :param subnet_id: Subnet ID
-        :return: Updated Subnet object
-        """
-        conn = get_openstack_conn()
-        subnet = conn.network.update_subnet(subnet_id, gateway_ip=None)
-        return self._convert_to_subnet_model(subnet)
-
-    def set_subnet_dhcp_enabled(self, subnet_id: str, enabled: bool) -> Subnet:
-        """
-        Enable or disable DHCP on a subnet.
-
-        :param subnet_id: Subnet ID
-        :param enabled: DHCP enabled state
-        :return: Updated Subnet object
-        """
-        conn = get_openstack_conn()
-        subnet = conn.network.update_subnet(subnet_id, enable_dhcp=enabled)
-        return self._convert_to_subnet_model(subnet)
-
-    def toggle_subnet_dhcp(self, subnet_id: str) -> Subnet:
-        """
-        Toggle DHCP enabled state for a subnet.
-
-        :param subnet_id: Subnet ID
-        :return: Updated Subnet object
-        """
-        conn = get_openstack_conn()
-        current = conn.network.get_subnet(subnet_id)
-        subnet = conn.network.update_subnet(
-            subnet_id,
-            enable_dhcp=False if current.enable_dhcp else True,
-        )
-        return self._convert_to_subnet_model(subnet)
 
     def _convert_to_subnet_model(self, openstack_subnet) -> Subnet:
         """
