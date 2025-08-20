@@ -383,17 +383,19 @@ class NetworkTools:
         return Subnet(
             id=openstack_subnet.id,
             name=openstack_subnet.name,
-            status=openstack_subnet.status,
+            status=getattr(openstack_subnet, "status", None),
             description=openstack_subnet.description,
             project_id=openstack_subnet.project_id,
             network_id=openstack_subnet.network_id,
             cidr=openstack_subnet.cidr,
             ip_version=openstack_subnet.ip_version,
             gateway_ip=openstack_subnet.gateway_ip,
-            is_dhcp_enabled=openstack_subnet.enable_dhcp,
-            allocation_pools=openstack_subnet.allocation_pools,
-            dns_nameservers=openstack_subnet.dns_nameservers,
-            host_routes=openstack_subnet.host_routes,
+            is_dhcp_enabled=openstack_subnet.is_dhcp_enabled,
+            allocation_pools=getattr(
+                openstack_subnet, "allocation_pools", None
+            ),
+            dns_nameservers=getattr(openstack_subnet, "dns_nameservers", None),
+            host_routes=getattr(openstack_subnet, "host_routes", None),
         )
 
     def get_ports(

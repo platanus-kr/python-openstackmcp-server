@@ -815,6 +815,7 @@ class TestNetworkTools:
         subnet1.ip_version = 4
         subnet1.gateway_ip = "10.0.0.1"
         subnet1.enable_dhcp = True
+        subnet1.is_dhcp_enabled = True
         subnet1.allocation_pools = []
         subnet1.dns_nameservers = []
         subnet1.host_routes = []
@@ -830,6 +831,7 @@ class TestNetworkTools:
         subnet2.ip_version = 4
         subnet2.gateway_ip = None
         subnet2.enable_dhcp = False
+        subnet2.is_dhcp_enabled = False
         subnet2.allocation_pools = []
         subnet2.dns_nameservers = []
         subnet2.host_routes = []
@@ -888,6 +890,7 @@ class TestNetworkTools:
         subnet1.ip_version = 4
         subnet1.gateway_ip = "10.0.0.1"
         subnet1.enable_dhcp = True
+        subnet1.is_dhcp_enabled = True
         subnet1.allocation_pools = []
         subnet1.dns_nameservers = []
         subnet1.host_routes = []
@@ -903,6 +906,7 @@ class TestNetworkTools:
         subnet2.ip_version = 4
         subnet2.gateway_ip = None
         subnet2.enable_dhcp = False
+        subnet2.is_dhcp_enabled = False
         subnet2.allocation_pools = []
         subnet2.dns_nameservers = []
         subnet2.host_routes = []
@@ -935,6 +939,7 @@ class TestNetworkTools:
         subnet.ip_version = 4
         subnet.gateway_ip = "10.0.0.1"
         subnet.enable_dhcp = True
+        subnet.is_dhcp_enabled = True
         subnet.allocation_pools = [{"start": "10.0.0.10", "end": "10.0.0.20"}]
         subnet.dns_nameservers = ["8.8.8.8"]
         subnet.host_routes = []
@@ -989,6 +994,7 @@ class TestNetworkTools:
         subnet.ip_version = 4
         subnet.gateway_ip = "10.0.0.1"
         subnet.enable_dhcp = True
+        subnet.is_dhcp_enabled = True
         subnet.allocation_pools = []
         subnet.dns_nameservers = []
         subnet.host_routes = []
@@ -1018,6 +1024,7 @@ class TestNetworkTools:
         subnet.ip_version = 4
         subnet.gateway_ip = "10.0.0.254"
         subnet.enable_dhcp = False
+        subnet.is_dhcp_enabled = False
         subnet.allocation_pools = []
         subnet.dns_nameservers = []
         subnet.host_routes = []
@@ -1078,6 +1085,7 @@ class TestNetworkTools:
         updated.ip_version = 4
         updated.gateway_ip = "10.0.0.254"
         updated.enable_dhcp = True
+        updated.is_dhcp_enabled = True
         updated.allocation_pools = []
         updated.dns_nameservers = []
         updated.host_routes = []
@@ -1109,6 +1117,7 @@ class TestNetworkTools:
         updated.ip_version = 4
         updated.gateway_ip = "10.0.0.1"
         updated.enable_dhcp = True
+        updated.is_dhcp_enabled = True
         updated.allocation_pools = []
         updated.dns_nameservers = []
         updated.host_routes = []
@@ -1120,6 +1129,7 @@ class TestNetworkTools:
         assert res1.is_dhcp_enabled is True
 
         updated.enable_dhcp = False
+        updated.is_dhcp_enabled = False
         res2 = tools.update_subnet("subnet-1", is_dhcp_enabled=False)
         assert res2.is_dhcp_enabled is False
 

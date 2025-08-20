@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 # Transport protocol
-MCP_TRANSPORT: str = os.environ.get("TRANSPORT", "stdio")
+MCP_TRANSPORT: str = os.environ.get("TRANSPORT", "streamable-http")
 
 # Openstack client settings
 MCP_CLOUD_NAME: str = os.environ.get("CLOUD_NAME", "openstack")
