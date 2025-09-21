@@ -6,6 +6,7 @@ from openstack_mcp_server.tools.response.network import (
     Network,
     Port,
     Router,
+    RouterInterface,
     Subnet,
 )
 
@@ -1565,3 +1566,105 @@ class TestNetworkTools:
                 ],
             },
         )
+
+    def test_add_get_remove_router_interface_by_subnet(
+        self, mock_openstack_connect_network
+    ):
+        mock_conn = mock_openstack_connect_network
+
+        add_res = {"router_id": "r-if-1", "port_id": "p-1", "subnet_id": "s-1"}
+        mock_conn.network.add_interface_to_router.return_value = add_res
+
+        p = Mock()
+        p.id = "p-1"
+        p.fixed_ips = [{"subnet_id": "s-1", "ip_address": "10.0.0.1"}]
+        mock_conn.list_ports.return_value = [p]
+
+        rm_res = {"router_id": "r-if-1", "port_id": "p-1", "subnet_id": "s-1"}
+        mock_conn.network.remove_interface_from_router.return_value = rm_res
+
+        tools = self.get_network_tools()
+        added = tools.add_router_interface("r-if-1", subnet_id="s-1")
+        assert added == RouterInterface(
+            router_id="r-if-1", port_id="p-1", subnet_id="s-1"
+        )
+
+        lst = tools.get_router_interfaces("r-if-1")
+        assert lst == [
+            RouterInterface(router_id="r-if-1", port_id="p-1", subnet_id="s-1")
+        ]
+
+        removed = tools.remove_router_interface("r-if-1", subnet_id="s-1")
+        assert removed == RouterInterface(
+            router_id="r-if-1", port_id="p-1", subnet_id="s-1"
+        )
+
+    def test_add_get_remove_router_interface_by_port(
+        self, mock_openstack_connect_network
+    ):
+        mock_conn = mock_openstack_connect_network
+
+        add_res = {"router_id": "r-if-2", "port_id": "p-2", "subnet_id": "s-2"}
+        mock_conn.network.add_interface_to_router.return_value = add_res
+
+        p = Mock()
+        p.id = "p-2"
+        p.fixed_ips = [{"subnet_id": "s-2", "ip_address": "10.0.1.1"}]
+        mock_conn.list_ports.return_value = [p]
+
+        rm_res = {"router_id": "r-if-2", "port_id": "p-2", "subnet_id": "s-2"}
+        mock_conn.network.remove_interface_from_router.return_value = rm_res
+
+        tools = self.get_network_tools()
+        added = tools.add_router_interface("r-if-2", port_id="p-2")
+        assert added == RouterInterface(
+            router_id="r-if-2", port_id="p-2", subnet_id="s-2"
+        )
+
+        lst = tools.get_router_interfaces("r-if-2")
+        assert lst == [
+            RouterInterface(router_id="r-if-2", port_id="p-2", subnet_id="s-2")
+        ]
+
+        removed = tools.remove_router_interface("r-if-2", port_id="p-2")
+        assert removed == RouterInterface(
+            router_id="r-if-2", port_id="p-2", subnet_id="s-2"
+        )
+
+    def test_add_get_remove_router_static_routes(
+        self, mock_openstack_connect_network
+    ):
+        mock_conn = mock_openstack_connect_network
+
+        current = Mock()
+        current.routes = []
+        mock_conn.network.get_router.return_value = current
+
+        updated = Mock()
+        updated.id = "r-rt-1"
+        updated.routes = [
+            {"destination": "198.51.100.0/24", "nexthop": "10.0.0.254"}
+        ]
+        mock_conn.network.update_router.return_value = updated
+
+        tools = self.get_network_tools()
+        res_add = tools.add_router_static_route(
+            "r-rt-1", "198.51.100.0/24", "10.0.0.254"
+        )
+        assert isinstance(res_add, Router)
+
+        mock_conn.network.get_router.return_value = updated
+        routes = tools.get_router_static_routes("r-rt-1")
+        assert routes == [
+            {"destination": "198.51.100.0/24", "nexthop": "10.0.0.254"}
+        ]
+
+        updated2 = Mock()
+        updated2.id = "r-rt-1"
+        updated2.routes = []
+        mock_conn.network.update_router.return_value = updated2
+
+        res_rm = tools.remove_router_static_route(
+            "r-rt-1", "198.51.100.0/24", "10.0.0.254"
+        )
+        assert isinstance(res_rm, Router)

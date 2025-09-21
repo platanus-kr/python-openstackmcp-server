@@ -6,6 +6,7 @@ from .response.network import (
     Network,
     Port,
     Router,
+    RouterInterface,
     Subnet,
 )
 
@@ -41,6 +42,12 @@ class NetworkTools:
         mcp.tool()(self.update_router)
         mcp.tool()(self.delete_router)
         mcp.tool()(self.set_router_external_gateway)
+        mcp.tool()(self.add_router_interface)
+        mcp.tool()(self.get_router_interfaces)
+        mcp.tool()(self.remove_router_interface)
+        mcp.tool()(self.add_router_static_route)
+        mcp.tool()(self.get_router_static_routes)
+        mcp.tool()(self.remove_router_static_route)
         mcp.tool()(self.get_port_allowed_address_pairs)
         mcp.tool()(self.set_port_binding)
         mcp.tool()(self.get_floating_ips)
@@ -830,6 +837,126 @@ class NetworkTools:
             external_gateway_info=gw_info,
         )
         return self._convert_to_router_model(router)
+
+    def add_router_interface(
+        self,
+        router_id: str,
+        subnet_id: str | None = None,
+        port_id: str | None = None,
+    ) -> RouterInterface:
+        """
+        Add an interface to a Router by subnet or port.
+
+        Provide either subnet_id or port_id.
+        """
+        conn = get_openstack_conn()
+        args: dict = {}
+        if subnet_id is not None:
+            args["subnet_id"] = subnet_id
+        if port_id is not None:
+            args["port_id"] = port_id
+        res = conn.network.add_interface_to_router(router_id, **args)
+        return RouterInterface(
+            router_id=res.get("router_id", router_id),
+            port_id=res.get("port_id"),
+            subnet_id=res.get("subnet_id"),
+        )
+
+    def get_router_interfaces(self, router_id: str) -> list[RouterInterface]:
+        """
+        List interfaces attached to a Router.
+        """
+        conn = get_openstack_conn()
+        ports = conn.list_ports(
+            filters={
+                "device_id": router_id,
+                "device_owner": "network:router_interface",
+            }
+        )
+        result: list[RouterInterface] = []
+        for p in ports:
+            subnet_id = None
+            if getattr(p, "fixed_ips", None):
+                first = p.fixed_ips[0]
+                subnet_id = (
+                    first.get("subnet_id") if isinstance(first, dict) else None
+                )
+            result.append(
+                RouterInterface(
+                    router_id=router_id,
+                    port_id=p.id,
+                    subnet_id=subnet_id,
+                )
+            )
+        return result
+
+    def remove_router_interface(
+        self,
+        router_id: str,
+        subnet_id: str | None = None,
+        port_id: str | None = None,
+    ) -> RouterInterface:
+        """
+        Remove an interface from a Router by subnet or port.
+        """
+        conn = get_openstack_conn()
+        args: dict = {}
+        if subnet_id is not None:
+            args["subnet_id"] = subnet_id
+        if port_id is not None:
+            args["port_id"] = port_id
+        res = conn.network.remove_interface_from_router(router_id, **args)
+        return RouterInterface(
+            router_id=res.get("router_id", router_id),
+            port_id=res.get("port_id"),
+            subnet_id=res.get("subnet_id"),
+        )
+
+    def add_router_static_route(
+        self,
+        router_id: str,
+        destination: str,
+        nexthop: str,
+    ) -> Router:
+        """
+        Add a static route to a Router.
+        """
+        conn = get_openstack_conn()
+        current = conn.network.get_router(router_id)
+        routes = list(getattr(current, "routes", []) or [])
+        routes.append({"destination": destination, "nexthop": nexthop})
+        updated = conn.network.update_router(router_id, routes=routes)
+        return self._convert_to_router_model(updated)
+
+    def get_router_static_routes(self, router_id: str) -> list[dict]:
+        """
+        Get static routes configured on a Router.
+        """
+        conn = get_openstack_conn()
+        r = conn.network.get_router(router_id)
+        return list(getattr(r, "routes", []) or [])
+
+    def remove_router_static_route(
+        self,
+        router_id: str,
+        destination: str,
+        nexthop: str,
+    ) -> Router:
+        """
+        Remove a static route from a Router.
+        """
+        conn = get_openstack_conn()
+        current = conn.network.get_router(router_id)
+        routes = [
+            rt
+            for rt in list(getattr(current, "routes", []) or [])
+            if not (
+                rt.get("destination") == destination
+                and rt.get("nexthop") == nexthop
+            )
+        ]
+        updated = conn.network.update_router(router_id, routes=routes)
+        return self._convert_to_router_model(updated)
 
     def get_floating_ips(
         self,
