@@ -41,13 +41,9 @@ class NetworkTools:
         mcp.tool()(self.get_router_detail)
         mcp.tool()(self.update_router)
         mcp.tool()(self.delete_router)
-        mcp.tool()(self.set_router_external_gateway)
         mcp.tool()(self.add_router_interface)
         mcp.tool()(self.get_router_interfaces)
         mcp.tool()(self.remove_router_interface)
-        mcp.tool()(self.add_router_static_route)
-        mcp.tool()(self.get_router_static_routes)
-        mcp.tool()(self.remove_router_static_route)
         mcp.tool()(self.get_port_allowed_address_pairs)
         mcp.tool()(self.set_port_binding)
         mcp.tool()(self.get_floating_ips)
@@ -653,10 +649,6 @@ class NetworkTools:
             else None,
         )
 
-    # -----------------------------
-    # Router
-    # -----------------------------
-
     def get_routers(
         self,
         status_filter: str | None = None,
@@ -688,18 +680,30 @@ class NetworkTools:
         description: str | None = None,
         is_admin_state_up: bool = True,
         is_distributed: bool | None = None,
-        is_ha: bool | None = None,
         project_id: str | None = None,
+        external_gateway_info: dict | None = None,
     ) -> Router:
         """
         Create a new Router.
+
+        Typical use-cases:
+        - Create basic router: name="r1" (defaults to admin_state_up=True)
+        - Create distributed router: is_distributed=True
+        - Create with external gateway for north-south traffic:
+          external_gateway_info={"network_id": "ext-net", "enable_snat": True,
+          "external_fixed_ips": [{"subnet_id": "ext-subnet", "ip_address": "203.0.113.10"}]}
+        - Create with project ownership: project_id="proj-1"
+
+        Notes:
+        - external_gateway_info should follow Neutron schema: at minimum include
+          "network_id"; optional keys include "enable_snat" and "external_fixed_ips".
 
         :param name: Router name
         :param description: Router description
         :param is_admin_state_up: Administrative state
         :param is_distributed: Distributed router flag
-        :param is_ha: High-availability router flag
         :param project_id: Project ownership
+        :param external_gateway_info: External gateway info dict
         :return: Created Router object
         """
         conn = get_openstack_conn()
@@ -710,10 +714,10 @@ class NetworkTools:
             router_args["description"] = description
         if is_distributed is not None:
             router_args["distributed"] = is_distributed
-        if is_ha is not None:
-            router_args["ha"] = is_ha
         if project_id is not None:
             router_args["project_id"] = project_id
+        if external_gateway_info is not None:
+            router_args["external_gateway_info"] = external_gateway_info
         router = conn.network.create_router(**router_args)
         return self._convert_to_router_model(router)
 
@@ -735,18 +739,34 @@ class NetworkTools:
         description: str | None = None,
         is_admin_state_up: bool | None = None,
         is_distributed: bool | None = None,
-        is_ha: bool | None = None,
+        external_gateway_info: dict | None = None,
+        clear_external_gateway: bool = False,
+        routes: list[dict] | None = None,
     ) -> Router:
         """
-        Update an existing Router. Only provided parameters are changed; omitted
-        parameters remain untouched.
+        Update Router attributes atomically. Only provided parameters are changed;
+        omitted parameters remain untouched.
+
+        Typical use-cases:
+        - Rename and change description: name="r-new", description="d".
+        - Toggle admin state: read current via get_router_detail(); pass inverted bool to is_admin_state_up.
+        - Set distributed flag: is_distributed=True or False.
+        - Set external gateway: external_gateway_info={"network_id": "ext-net", "enable_snat": True, "external_fixed_ips": [...]}.
+        - Clear external gateway: clear_external_gateway=True (takes precedence over external_gateway_info).
+        - Replace static routes: routes=[{"destination": "192.0.2.0/24", "nexthop": "10.0.0.1"}]. Pass [] to remove all routes.
+
+        Notes:
+        - For list-typed fields (routes), the provided list replaces the entire list on the server.
+        - To clear external gateway, use clear_external_gateway=True. If both provided, clear_external_gateway takes precedence.
 
         :param router_id: ID of the router to update
         :param name: New router name
         :param description: New router description
         :param is_admin_state_up: Administrative state
         :param is_distributed: Distributed router flag
-        :param is_ha: High-availability router flag
+        :param external_gateway_info: External gateway info dict to set
+        :param clear_external_gateway: If True, clear external gateway (set to None)
+        :param routes: Static routes (replaces entire list)
         :return: Updated Router object
         """
         conn = get_openstack_conn()
@@ -759,8 +779,12 @@ class NetworkTools:
             update_args["admin_state_up"] = is_admin_state_up
         if is_distributed is not None:
             update_args["distributed"] = is_distributed
-        if is_ha is not None:
-            update_args["ha"] = is_ha
+        if clear_external_gateway:
+            update_args["external_gateway_info"] = None
+        elif external_gateway_info is not None:
+            update_args["external_gateway_info"] = external_gateway_info
+        if routes is not None:
+            update_args["routes"] = routes
         if not update_args:
             current = conn.network.get_router(router_id)
             return self._convert_to_router_model(current)
@@ -785,58 +809,49 @@ class NetworkTools:
         :param openstack_router: OpenStack router object
         :return: Pydantic Router model
         """
+        name = getattr(openstack_router, "name", None)
+        if not isinstance(name, str):
+            name = None
+        status = getattr(openstack_router, "status", None)
+        if not isinstance(status, str):
+            status = None
+        description = getattr(openstack_router, "description", None)
+        if not isinstance(description, str):
+            description = None
+        project_id = getattr(openstack_router, "project_id", None)
+        if not isinstance(project_id, str):
+            project_id = None
+        is_admin_state_up = getattr(
+            openstack_router, "is_admin_state_up", None
+        )
+        if not isinstance(is_admin_state_up, bool):
+            is_admin_state_up = None
+        external_gateway_info = getattr(
+            openstack_router, "external_gateway_info", None
+        )
+        if not isinstance(external_gateway_info, dict):
+            external_gateway_info = None
+        is_distributed = getattr(openstack_router, "is_distributed", None)
+        if not isinstance(is_distributed, bool):
+            is_distributed = None
+        is_ha = getattr(openstack_router, "is_ha", None)
+        if not isinstance(is_ha, bool):
+            is_ha = None
+        routes = getattr(openstack_router, "routes", None)
+        if not isinstance(routes, list):
+            routes = None
         return Router(
             id=openstack_router.id,
-            name=self._safe_attr(openstack_router, "name", str),
-            status=self._safe_attr(openstack_router, "status", str),
-            description=self._safe_attr(openstack_router, "description", str),
-            project_id=self._safe_attr(openstack_router, "project_id", str),
-            is_admin_state_up=self._safe_attr(
-                openstack_router, "is_admin_state_up", bool
-            ),
-            external_gateway_info=self._safe_attr(
-                openstack_router, "external_gateway_info", dict
-            ),
-            is_distributed=self._safe_attr(
-                openstack_router, "is_distributed", bool
-            ),
-            is_ha=self._safe_attr(openstack_router, "is_ha", bool),
-            routes=self._safe_attr(openstack_router, "routes", list),
+            name=name,
+            status=status,
+            description=description,
+            project_id=project_id,
+            is_admin_state_up=is_admin_state_up,
+            external_gateway_info=external_gateway_info,
+            is_distributed=is_distributed,
+            is_ha=is_ha,
+            routes=routes,
         )
-
-    def _safe_attr(self, obj, name: str, expected_type):
-        value = getattr(obj, name, None)
-        if isinstance(value, expected_type):
-            return value
-        return None
-
-    def set_router_external_gateway(
-        self,
-        router_id: str,
-        external_network_id: str,
-        enable_snat: bool | None = None,
-        external_fixed_ips: list[dict] | None = None,
-    ) -> Router:
-        """
-        Add or update the external gateway on a Router.
-
-        :param router_id: Router ID
-        :param external_network_id: External network ID to set as gateway
-        :param enable_snat: Whether to enable SNAT (optional)
-        :param external_fixed_ips: List of fixed IP mappings (optional)
-        :return: Updated Router object
-        """
-        conn = get_openstack_conn()
-        gw_info: dict = {"network_id": external_network_id}
-        if enable_snat is not None:
-            gw_info["enable_snat"] = enable_snat
-        if external_fixed_ips is not None:
-            gw_info["external_fixed_ips"] = external_fixed_ips
-        router = conn.network.update_router(
-            router_id,
-            external_gateway_info=gw_info,
-        )
-        return self._convert_to_router_model(router)
 
     def add_router_interface(
         self,
@@ -848,6 +863,11 @@ class NetworkTools:
         Add an interface to a Router by subnet or port.
 
         Provide either subnet_id or port_id.
+
+        :param router_id: Target router ID
+        :param subnet_id: Subnet ID to attach (mutually exclusive with port_id)
+        :param port_id: Port ID to attach (mutually exclusive with subnet_id)
+        :return: Created/attached router interface information as RouterInterface
         """
         conn = get_openstack_conn()
         args: dict = {}
@@ -865,6 +885,9 @@ class NetworkTools:
     def get_router_interfaces(self, router_id: str) -> list[RouterInterface]:
         """
         List interfaces attached to a Router.
+
+        :param router_id: Target router ID
+        :return: List of RouterInterface objects representing router-owned ports
         """
         conn = get_openstack_conn()
         ports = conn.list_ports(
@@ -898,6 +921,13 @@ class NetworkTools:
     ) -> RouterInterface:
         """
         Remove an interface from a Router by subnet or port.
+
+        Provide either subnet_id or port_id.
+
+        :param router_id: Target router ID
+        :param subnet_id: Subnet ID to detach (mutually exclusive with port_id)
+        :param port_id: Port ID to detach (mutually exclusive with subnet_id)
+        :return: Detached interface information as RouterInterface
         """
         conn = get_openstack_conn()
         args: dict = {}
@@ -911,52 +941,6 @@ class NetworkTools:
             port_id=res.get("port_id"),
             subnet_id=res.get("subnet_id"),
         )
-
-    def add_router_static_route(
-        self,
-        router_id: str,
-        destination: str,
-        nexthop: str,
-    ) -> Router:
-        """
-        Add a static route to a Router.
-        """
-        conn = get_openstack_conn()
-        current = conn.network.get_router(router_id)
-        routes = list(getattr(current, "routes", []) or [])
-        routes.append({"destination": destination, "nexthop": nexthop})
-        updated = conn.network.update_router(router_id, routes=routes)
-        return self._convert_to_router_model(updated)
-
-    def get_router_static_routes(self, router_id: str) -> list[dict]:
-        """
-        Get static routes configured on a Router.
-        """
-        conn = get_openstack_conn()
-        r = conn.network.get_router(router_id)
-        return list(getattr(r, "routes", []) or [])
-
-    def remove_router_static_route(
-        self,
-        router_id: str,
-        destination: str,
-        nexthop: str,
-    ) -> Router:
-        """
-        Remove a static route from a Router.
-        """
-        conn = get_openstack_conn()
-        current = conn.network.get_router(router_id)
-        routes = [
-            rt
-            for rt in list(getattr(current, "routes", []) or [])
-            if not (
-                rt.get("destination") == destination
-                and rt.get("nexthop") == nexthop
-            )
-        ]
-        updated = conn.network.update_router(router_id, routes=routes)
-        return self._convert_to_router_model(updated)
 
     def get_floating_ips(
         self,

@@ -1367,7 +1367,7 @@ class TestNetworkTools:
         r.is_admin_state_up = True
         r.external_gateway_info = None
         r.is_distributed = True
-        r.is_ha = True
+        r.is_ha = None
         r.routes = []
         mock_conn.network.create_router.return_value = r
 
@@ -1377,8 +1377,8 @@ class TestNetworkTools:
             description="desc",
             is_admin_state_up=True,
             is_distributed=True,
-            is_ha=True,
             project_id="proj-1",
+            external_gateway_info={"network_id": "ext-net"},
         )
 
         assert isinstance(res, Router)
@@ -1387,8 +1387,8 @@ class TestNetworkTools:
             name="r1",
             description="desc",
             distributed=True,
-            ha=True,
             project_id="proj-1",
+            external_gateway_info={"network_id": "ext-net"},
         )
 
     def test_create_router_minimal(self, mock_openstack_connect_network):
@@ -1458,7 +1458,13 @@ class TestNetworkTools:
             description="d-new",
             is_admin_state_up=False,
             is_distributed=True,
-            is_ha=False,
+            external_gateway_info={
+                "network_id": "ext-net",
+                "enable_snat": True,
+            },
+            routes=[
+                {"destination": "198.51.100.0/24", "nexthop": "10.0.0.254"}
+            ],
         )
         assert res.name == "r4-new"
         mock_conn.network.update_router.assert_called_once_with(
@@ -1467,7 +1473,13 @@ class TestNetworkTools:
             description="d-new",
             admin_state_up=False,
             distributed=True,
-            ha=False,
+            external_gateway_info={
+                "network_id": "ext-net",
+                "enable_snat": True,
+            },
+            routes=[
+                {"destination": "198.51.100.0/24", "nexthop": "10.0.0.254"}
+            ],
         )
 
     def test_update_router_no_fields_returns_current(
@@ -1504,33 +1516,7 @@ class TestNetworkTools:
             ignore_missing=False,
         )
 
-    def test_set_router_external_gateway_basic(
-        self, mock_openstack_connect_network
-    ):
-        mock_conn = mock_openstack_connect_network
-
-        r = Mock()
-        r.id = "router-7"
-        r.name = "r7"
-        r.status = "ACTIVE"
-        r.description = None
-        r.project_id = None
-        r.is_admin_state_up = True
-        r.external_gateway_info = {"network_id": "ext-net"}
-        r.is_distributed = None
-        r.is_ha = None
-        r.routes = None
-        mock_conn.network.update_router.return_value = r
-
-        tools = self.get_network_tools()
-        res = tools.set_router_external_gateway("router-7", "ext-net")
-        assert isinstance(res, Router)
-        mock_conn.network.update_router.assert_called_once_with(
-            "router-7",
-            external_gateway_info={"network_id": "ext-net"},
-        )
-
-    def test_set_router_external_gateway_with_options(
+    def test_update_router_external_gateway_and_clear(
         self, mock_openstack_connect_network
     ):
         mock_conn = mock_openstack_connect_network
@@ -1540,20 +1526,16 @@ class TestNetworkTools:
         r.external_gateway_info = {
             "network_id": "ext-net",
             "enable_snat": False,
-            "external_fixed_ips": [
-                {"subnet_id": "subnet-ext", "ip_address": "203.0.113.100"}
-            ],
         }
         mock_conn.network.update_router.return_value = r
 
         tools = self.get_network_tools()
-        res = tools.set_router_external_gateway(
+        res = tools.update_router(
             "router-8",
-            external_network_id="ext-net",
-            enable_snat=False,
-            external_fixed_ips=[
-                {"subnet_id": "subnet-ext", "ip_address": "203.0.113.100"}
-            ],
+            external_gateway_info={
+                "network_id": "ext-net",
+                "enable_snat": False,
+            },
         )
         assert res.external_gateway_info == r.external_gateway_info
         mock_conn.network.update_router.assert_called_once_with(
@@ -1561,10 +1543,17 @@ class TestNetworkTools:
             external_gateway_info={
                 "network_id": "ext-net",
                 "enable_snat": False,
-                "external_fixed_ips": [
-                    {"subnet_id": "subnet-ext", "ip_address": "203.0.113.100"}
-                ],
             },
+        )
+
+        r2 = Mock()
+        r2.id = "router-8"
+        r2.external_gateway_info = None
+        mock_conn.network.update_router.return_value = r2
+        cleared = tools.update_router("router-8", clear_external_gateway=True)
+        assert cleared.external_gateway_info is None
+        mock_conn.network.update_router.assert_called_with(
+            "router-8", external_gateway_info=None
         )
 
     def test_add_get_remove_router_interface_by_subnet(
@@ -1631,14 +1620,10 @@ class TestNetworkTools:
             router_id="r-if-2", port_id="p-2", subnet_id="s-2"
         )
 
-    def test_add_get_remove_router_static_routes(
+    def test_update_router_routes_replace(
         self, mock_openstack_connect_network
     ):
         mock_conn = mock_openstack_connect_network
-
-        current = Mock()
-        current.routes = []
-        mock_conn.network.get_router.return_value = current
 
         updated = Mock()
         updated.id = "r-rt-1"
@@ -1648,23 +1633,16 @@ class TestNetworkTools:
         mock_conn.network.update_router.return_value = updated
 
         tools = self.get_network_tools()
-        res_add = tools.add_router_static_route(
-            "r-rt-1", "198.51.100.0/24", "10.0.0.254"
+        res = tools.update_router(
+            "r-rt-1",
+            routes=[
+                {"destination": "198.51.100.0/24", "nexthop": "10.0.0.254"}
+            ],
         )
-        assert isinstance(res_add, Router)
-
-        mock_conn.network.get_router.return_value = updated
-        routes = tools.get_router_static_routes("r-rt-1")
-        assert routes == [
-            {"destination": "198.51.100.0/24", "nexthop": "10.0.0.254"}
-        ]
-
-        updated2 = Mock()
-        updated2.id = "r-rt-1"
-        updated2.routes = []
-        mock_conn.network.update_router.return_value = updated2
-
-        res_rm = tools.remove_router_static_route(
-            "r-rt-1", "198.51.100.0/24", "10.0.0.254"
+        assert isinstance(res, Router)
+        mock_conn.network.update_router.assert_called_once_with(
+            "r-rt-1",
+            routes=[
+                {"destination": "198.51.100.0/24", "nexthop": "10.0.0.254"}
+            ],
         )
-        assert isinstance(res_rm, Router)
