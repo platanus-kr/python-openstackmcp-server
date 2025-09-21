@@ -1523,6 +1523,14 @@ class TestNetworkTools:
 
         r = Mock()
         r.id = "router-8"
+        r.name = None
+        r.status = None
+        r.description = None
+        r.project_id = None
+        r.is_admin_state_up = None
+        r.is_distributed = None
+        r.is_ha = None
+        r.routes = None
         r.external_gateway_info = {
             "network_id": "ext-net",
             "enable_snat": False,
@@ -1548,6 +1556,14 @@ class TestNetworkTools:
 
         r2 = Mock()
         r2.id = "router-8"
+        r2.name = None
+        r2.status = None
+        r2.description = None
+        r2.project_id = None
+        r2.is_admin_state_up = None
+        r2.is_distributed = None
+        r2.is_ha = None
+        r2.routes = None
         r2.external_gateway_info = None
         mock_conn.network.update_router.return_value = r2
         cleared = tools.update_router("router-8", clear_external_gateway=True)
@@ -1627,6 +1643,14 @@ class TestNetworkTools:
 
         updated = Mock()
         updated.id = "r-rt-1"
+        updated.name = None
+        updated.status = None
+        updated.description = None
+        updated.project_id = None
+        updated.is_admin_state_up = None
+        updated.external_gateway_info = None
+        updated.is_distributed = None
+        updated.is_ha = None
         updated.routes = [
             {"destination": "198.51.100.0/24", "nexthop": "10.0.0.254"}
         ]

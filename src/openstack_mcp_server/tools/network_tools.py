@@ -809,48 +809,21 @@ class NetworkTools:
         :param openstack_router: OpenStack router object
         :return: Pydantic Router model
         """
-        name = getattr(openstack_router, "name", None)
-        if not isinstance(name, str):
-            name = None
-        status = getattr(openstack_router, "status", None)
-        if not isinstance(status, str):
-            status = None
-        description = getattr(openstack_router, "description", None)
-        if not isinstance(description, str):
-            description = None
-        project_id = getattr(openstack_router, "project_id", None)
-        if not isinstance(project_id, str):
-            project_id = None
-        is_admin_state_up = getattr(
-            openstack_router, "is_admin_state_up", None
-        )
-        if not isinstance(is_admin_state_up, bool):
-            is_admin_state_up = None
-        external_gateway_info = getattr(
-            openstack_router, "external_gateway_info", None
-        )
-        if not isinstance(external_gateway_info, dict):
-            external_gateway_info = None
-        is_distributed = getattr(openstack_router, "is_distributed", None)
-        if not isinstance(is_distributed, bool):
-            is_distributed = None
-        is_ha = getattr(openstack_router, "is_ha", None)
-        if not isinstance(is_ha, bool):
-            is_ha = None
-        routes = getattr(openstack_router, "routes", None)
-        if not isinstance(routes, list):
-            routes = None
         return Router(
             id=openstack_router.id,
-            name=name,
-            status=status,
-            description=description,
-            project_id=project_id,
-            is_admin_state_up=is_admin_state_up,
-            external_gateway_info=external_gateway_info,
-            is_distributed=is_distributed,
-            is_ha=is_ha,
-            routes=routes,
+            name=getattr(openstack_router, "name", None),
+            status=getattr(openstack_router, "status", None),
+            description=getattr(openstack_router, "description", None),
+            project_id=getattr(openstack_router, "project_id", None),
+            is_admin_state_up=getattr(
+                openstack_router, "is_admin_state_up", None
+            ),
+            external_gateway_info=getattr(
+                openstack_router, "external_gateway_info", None
+            ),
+            is_distributed=getattr(openstack_router, "is_distributed", None),
+            is_ha=getattr(openstack_router, "is_ha", None),
+            routes=getattr(openstack_router, "routes", None),
         )
 
     def add_router_interface(
