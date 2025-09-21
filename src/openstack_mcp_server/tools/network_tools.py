@@ -5,6 +5,7 @@ from .response.network import (
     FloatingIP,
     Network,
     Port,
+    Router,
     Subnet,
 )
 
@@ -34,6 +35,12 @@ class NetworkTools:
         mcp.tool()(self.get_port_detail)
         mcp.tool()(self.update_port)
         mcp.tool()(self.delete_port)
+        mcp.tool()(self.get_routers)
+        mcp.tool()(self.create_router)
+        mcp.tool()(self.get_router_detail)
+        mcp.tool()(self.update_router)
+        mcp.tool()(self.delete_router)
+        mcp.tool()(self.set_router_external_gateway)
         mcp.tool()(self.get_port_allowed_address_pairs)
         mcp.tool()(self.set_port_binding)
         mcp.tool()(self.get_floating_ips)
@@ -638,6 +645,191 @@ class NetworkTools:
             if hasattr(openstack_port, "security_group_ids")
             else None,
         )
+
+    # -----------------------------
+    # Router
+    # -----------------------------
+
+    def get_routers(
+        self,
+        status_filter: str | None = None,
+        project_id: str | None = None,
+        is_admin_state_up: bool | None = None,
+    ) -> list[Router]:
+        """
+        Get the list of Routers with optional filtering.
+
+        :param status_filter: Filter by router status (e.g., `ACTIVE`, `DOWN`)
+        :param project_id: Filter by project ID
+        :param is_admin_state_up: Filter by admin state
+        :return: List of Router objects
+        """
+        conn = get_openstack_conn()
+        filters: dict = {}
+        if status_filter:
+            filters["status"] = status_filter.upper()
+        if project_id:
+            filters["project_id"] = project_id
+        if is_admin_state_up is not None:
+            filters["admin_state_up"] = is_admin_state_up
+        routers = conn.list_routers(filters=filters)
+        return [self._convert_to_router_model(r) for r in routers]
+
+    def create_router(
+        self,
+        name: str | None = None,
+        description: str | None = None,
+        is_admin_state_up: bool = True,
+        is_distributed: bool | None = None,
+        is_ha: bool | None = None,
+        project_id: str | None = None,
+    ) -> Router:
+        """
+        Create a new Router.
+
+        :param name: Router name
+        :param description: Router description
+        :param is_admin_state_up: Administrative state
+        :param is_distributed: Distributed router flag
+        :param is_ha: High-availability router flag
+        :param project_id: Project ownership
+        :return: Created Router object
+        """
+        conn = get_openstack_conn()
+        router_args: dict = {"admin_state_up": is_admin_state_up}
+        if name is not None:
+            router_args["name"] = name
+        if description is not None:
+            router_args["description"] = description
+        if is_distributed is not None:
+            router_args["distributed"] = is_distributed
+        if is_ha is not None:
+            router_args["ha"] = is_ha
+        if project_id is not None:
+            router_args["project_id"] = project_id
+        router = conn.network.create_router(**router_args)
+        return self._convert_to_router_model(router)
+
+    def get_router_detail(self, router_id: str) -> Router:
+        """
+        Get detailed information about a specific Router.
+
+        :param router_id: ID of the router to retrieve
+        :return: Router details
+        """
+        conn = get_openstack_conn()
+        router = conn.network.get_router(router_id)
+        return self._convert_to_router_model(router)
+
+    def update_router(
+        self,
+        router_id: str,
+        name: str | None = None,
+        description: str | None = None,
+        is_admin_state_up: bool | None = None,
+        is_distributed: bool | None = None,
+        is_ha: bool | None = None,
+    ) -> Router:
+        """
+        Update an existing Router. Only provided parameters are changed; omitted
+        parameters remain untouched.
+
+        :param router_id: ID of the router to update
+        :param name: New router name
+        :param description: New router description
+        :param is_admin_state_up: Administrative state
+        :param is_distributed: Distributed router flag
+        :param is_ha: High-availability router flag
+        :return: Updated Router object
+        """
+        conn = get_openstack_conn()
+        update_args: dict = {}
+        if name is not None:
+            update_args["name"] = name
+        if description is not None:
+            update_args["description"] = description
+        if is_admin_state_up is not None:
+            update_args["admin_state_up"] = is_admin_state_up
+        if is_distributed is not None:
+            update_args["distributed"] = is_distributed
+        if is_ha is not None:
+            update_args["ha"] = is_ha
+        if not update_args:
+            current = conn.network.get_router(router_id)
+            return self._convert_to_router_model(current)
+        router = conn.network.update_router(router_id, **update_args)
+        return self._convert_to_router_model(router)
+
+    def delete_router(self, router_id: str) -> None:
+        """
+        Delete a Router.
+
+        :param router_id: ID of the router to delete
+        :return: None
+        """
+        conn = get_openstack_conn()
+        conn.network.delete_router(router_id, ignore_missing=False)
+        return None
+
+    def _convert_to_router_model(self, openstack_router) -> Router:
+        """
+        Convert an OpenStack Router object to a Router pydantic model.
+
+        :param openstack_router: OpenStack router object
+        :return: Pydantic Router model
+        """
+        return Router(
+            id=openstack_router.id,
+            name=self._safe_attr(openstack_router, "name", str),
+            status=self._safe_attr(openstack_router, "status", str),
+            description=self._safe_attr(openstack_router, "description", str),
+            project_id=self._safe_attr(openstack_router, "project_id", str),
+            is_admin_state_up=self._safe_attr(
+                openstack_router, "is_admin_state_up", bool
+            ),
+            external_gateway_info=self._safe_attr(
+                openstack_router, "external_gateway_info", dict
+            ),
+            is_distributed=self._safe_attr(
+                openstack_router, "is_distributed", bool
+            ),
+            is_ha=self._safe_attr(openstack_router, "is_ha", bool),
+            routes=self._safe_attr(openstack_router, "routes", list),
+        )
+
+    def _safe_attr(self, obj, name: str, expected_type):
+        value = getattr(obj, name, None)
+        if isinstance(value, expected_type):
+            return value
+        return None
+
+    def set_router_external_gateway(
+        self,
+        router_id: str,
+        external_network_id: str,
+        enable_snat: bool | None = None,
+        external_fixed_ips: list[dict] | None = None,
+    ) -> Router:
+        """
+        Add or update the external gateway on a Router.
+
+        :param router_id: Router ID
+        :param external_network_id: External network ID to set as gateway
+        :param enable_snat: Whether to enable SNAT (optional)
+        :param external_fixed_ips: List of fixed IP mappings (optional)
+        :return: Updated Router object
+        """
+        conn = get_openstack_conn()
+        gw_info: dict = {"network_id": external_network_id}
+        if enable_snat is not None:
+            gw_info["enable_snat"] = enable_snat
+        if external_fixed_ips is not None:
+            gw_info["external_fixed_ips"] = external_fixed_ips
+        router = conn.network.update_router(
+            router_id,
+            external_gateway_info=gw_info,
+        )
+        return self._convert_to_router_model(router)
 
     def get_floating_ips(
         self,

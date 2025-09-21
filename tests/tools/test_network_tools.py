@@ -5,6 +5,7 @@ from openstack_mcp_server.tools.response.network import (
     FloatingIP,
     Network,
     Port,
+    Router,
     Subnet,
 )
 
@@ -1305,3 +1306,262 @@ class TestNetworkTools:
         mock_conn.network.update_ip.return_value = exists
         auto = tools.assign_first_available_floating_ip("ext-net", "port-9")
         assert isinstance(auto, FloatingIP)
+
+    def test_get_routers_with_filters(self, mock_openstack_connect_network):
+        mock_conn = mock_openstack_connect_network
+
+        r = Mock()
+        r.id = "router-1"
+        r.name = "r1"
+        r.status = "ACTIVE"
+        r.description = "desc"
+        r.project_id = "proj-1"
+        r.is_admin_state_up = True
+        r.external_gateway_info = None
+        r.is_distributed = False
+        r.is_ha = False
+        r.routes = []
+
+        mock_conn.list_routers.return_value = [r]
+
+        tools = self.get_network_tools()
+        res = tools.get_routers(
+            status_filter="ACTIVE",
+            project_id="proj-1",
+            is_admin_state_up=True,
+        )
+
+        assert res == [
+            Router(
+                id="router-1",
+                name="r1",
+                status="ACTIVE",
+                description="desc",
+                project_id="proj-1",
+                is_admin_state_up=True,
+                external_gateway_info=None,
+                is_distributed=False,
+                is_ha=False,
+                routes=[],
+            ),
+        ]
+
+        mock_conn.list_routers.assert_called_once_with(
+            filters={
+                "status": "ACTIVE",
+                "project_id": "proj-1",
+                "admin_state_up": True,
+            },
+        )
+
+    def test_create_router_success(self, mock_openstack_connect_network):
+        mock_conn = mock_openstack_connect_network
+
+        r = Mock()
+        r.id = "router-1"
+        r.name = "r1"
+        r.status = "ACTIVE"
+        r.description = "desc"
+        r.project_id = "proj-1"
+        r.is_admin_state_up = True
+        r.external_gateway_info = None
+        r.is_distributed = True
+        r.is_ha = True
+        r.routes = []
+        mock_conn.network.create_router.return_value = r
+
+        tools = self.get_network_tools()
+        res = tools.create_router(
+            name="r1",
+            description="desc",
+            is_admin_state_up=True,
+            is_distributed=True,
+            is_ha=True,
+            project_id="proj-1",
+        )
+
+        assert isinstance(res, Router)
+        mock_conn.network.create_router.assert_called_once_with(
+            admin_state_up=True,
+            name="r1",
+            description="desc",
+            distributed=True,
+            ha=True,
+            project_id="proj-1",
+        )
+
+    def test_create_router_minimal(self, mock_openstack_connect_network):
+        mock_conn = mock_openstack_connect_network
+
+        r = Mock()
+        r.id = "router-2"
+        r.name = None
+        r.status = "DOWN"
+        r.description = None
+        r.project_id = None
+        r.is_admin_state_up = True
+        r.external_gateway_info = None
+        r.is_distributed = None
+        r.is_ha = None
+        r.routes = None
+        mock_conn.network.create_router.return_value = r
+
+        tools = self.get_network_tools()
+        res = tools.create_router()
+        assert isinstance(res, Router)
+        mock_conn.network.create_router.assert_called_once_with(
+            admin_state_up=True,
+        )
+
+    def test_get_router_detail_success(self, mock_openstack_connect_network):
+        mock_conn = mock_openstack_connect_network
+
+        r = Mock()
+        r.id = "router-3"
+        r.name = "r3"
+        r.status = "ACTIVE"
+        r.description = None
+        r.project_id = "proj-1"
+        r.is_admin_state_up = True
+        r.external_gateway_info = None
+        r.is_distributed = False
+        r.is_ha = False
+        r.routes = []
+        mock_conn.network.get_router.return_value = r
+
+        tools = self.get_network_tools()
+        res = tools.get_router_detail("router-3")
+        assert res.id == "router-3"
+        mock_conn.network.get_router.assert_called_once_with("router-3")
+
+    def test_update_router_success(self, mock_openstack_connect_network):
+        mock_conn = mock_openstack_connect_network
+
+        r = Mock()
+        r.id = "router-4"
+        r.name = "r4-new"
+        r.status = "ACTIVE"
+        r.description = "d-new"
+        r.project_id = "proj-1"
+        r.is_admin_state_up = False
+        r.external_gateway_info = None
+        r.is_distributed = True
+        r.is_ha = False
+        r.routes = []
+        mock_conn.network.update_router.return_value = r
+
+        tools = self.get_network_tools()
+        res = tools.update_router(
+            router_id="router-4",
+            name="r4-new",
+            description="d-new",
+            is_admin_state_up=False,
+            is_distributed=True,
+            is_ha=False,
+        )
+        assert res.name == "r4-new"
+        mock_conn.network.update_router.assert_called_once_with(
+            "router-4",
+            name="r4-new",
+            description="d-new",
+            admin_state_up=False,
+            distributed=True,
+            ha=False,
+        )
+
+    def test_update_router_no_fields_returns_current(
+        self, mock_openstack_connect_network
+    ):
+        mock_conn = mock_openstack_connect_network
+
+        current = Mock()
+        current.id = "router-5"
+        current.name = "r5"
+        current.status = "ACTIVE"
+        current.description = None
+        current.project_id = None
+        current.is_admin_state_up = True
+        current.external_gateway_info = None
+        current.is_distributed = None
+        current.is_ha = None
+        current.routes = None
+        mock_conn.network.get_router.return_value = current
+
+        tools = self.get_network_tools()
+        res = tools.update_router("router-5")
+        assert res.id == "router-5"
+
+    def test_delete_router_success(self, mock_openstack_connect_network):
+        mock_conn = mock_openstack_connect_network
+        mock_conn.network.delete_router.return_value = None
+
+        tools = self.get_network_tools()
+        result = tools.delete_router("router-6")
+        assert result is None
+        mock_conn.network.delete_router.assert_called_once_with(
+            "router-6",
+            ignore_missing=False,
+        )
+
+    def test_set_router_external_gateway_basic(
+        self, mock_openstack_connect_network
+    ):
+        mock_conn = mock_openstack_connect_network
+
+        r = Mock()
+        r.id = "router-7"
+        r.name = "r7"
+        r.status = "ACTIVE"
+        r.description = None
+        r.project_id = None
+        r.is_admin_state_up = True
+        r.external_gateway_info = {"network_id": "ext-net"}
+        r.is_distributed = None
+        r.is_ha = None
+        r.routes = None
+        mock_conn.network.update_router.return_value = r
+
+        tools = self.get_network_tools()
+        res = tools.set_router_external_gateway("router-7", "ext-net")
+        assert isinstance(res, Router)
+        mock_conn.network.update_router.assert_called_once_with(
+            "router-7",
+            external_gateway_info={"network_id": "ext-net"},
+        )
+
+    def test_set_router_external_gateway_with_options(
+        self, mock_openstack_connect_network
+    ):
+        mock_conn = mock_openstack_connect_network
+
+        r = Mock()
+        r.id = "router-8"
+        r.external_gateway_info = {
+            "network_id": "ext-net",
+            "enable_snat": False,
+            "external_fixed_ips": [
+                {"subnet_id": "subnet-ext", "ip_address": "203.0.113.100"}
+            ],
+        }
+        mock_conn.network.update_router.return_value = r
+
+        tools = self.get_network_tools()
+        res = tools.set_router_external_gateway(
+            "router-8",
+            external_network_id="ext-net",
+            enable_snat=False,
+            external_fixed_ips=[
+                {"subnet_id": "subnet-ext", "ip_address": "203.0.113.100"}
+            ],
+        )
+        assert res.external_gateway_info == r.external_gateway_info
+        mock_conn.network.update_router.assert_called_once_with(
+            "router-8",
+            external_gateway_info={
+                "network_id": "ext-net",
+                "enable_snat": False,
+                "external_fixed_ips": [
+                    {"subnet_id": "subnet-ext", "ip_address": "203.0.113.100"}
+                ],
+            },
+        )
