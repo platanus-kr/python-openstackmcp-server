@@ -1,6 +1,18 @@
+import ast
+import json
+
 from fastmcp import FastMCP
 
 from .base import get_openstack_conn
+from .request.network import (
+    AllocationPool,
+    AllowedAddressPair,
+    ExternalGatewayInfo,
+    HostRoute,
+    PortBindingProfile,
+    PortFixedIP,
+    Route,
+)
 from .response.network import (
     FloatingIP,
     Network,
@@ -14,7 +26,34 @@ from .response.network import (
 class NetworkTools:
     """
     A class to encapsulate Network-related tools and utilities.
+
+    - All dict/list parameters must be passed as native JSON objects, never quoted strings.
     """
+
+    def _coerce_list_of_strings(
+        self, value: list[str] | str | None
+    ) -> list[str] | None:
+        """Normalize input into a list[str].
+
+        Accepts list[str], a JSON/Python literal string of list[str], or a single
+        string which will be wrapped as a list. Returns None if value is None.
+        """
+        if value is None:
+            return None
+        if isinstance(value, list):
+            return [str(v) for v in value]
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+            except json.JSONDecodeError:
+                try:
+                    parsed = ast.literal_eval(value)
+                except Exception:
+                    parsed = value
+            if isinstance(parsed, list):
+                return [str(v) for v in parsed]
+            return [str(parsed)]
+        return [str(value)]
 
     def register_tools(self, mcp: FastMCP):
         """
@@ -90,6 +129,7 @@ class NetworkTools:
         provider_network_type: str | None = None,
         provider_physical_network: str | None = None,
         provider_segmentation_id: int | None = None,
+        project_id: str | None = None,
     ) -> Network:
         """
         Create a new Network.
@@ -124,6 +164,8 @@ class NetworkTools:
 
         if provider_segmentation_id is not None:
             network_args["provider_segmentation_id"] = provider_segmentation_id
+        if project_id is not None:
+            network_args["project_id"] = project_id
 
         network = conn.network.create_network(**network_args)
 
@@ -272,11 +314,25 @@ class NetworkTools:
         is_dhcp_enabled: bool = True,
         description: str | None = None,
         dns_nameservers: list[str] | None = None,
-        allocation_pools: list[dict] | None = None,
-        host_routes: list[dict] | None = None,
+        allocation_pools: list[AllocationPool] | None = None,
+        host_routes: list[HostRoute] | None = None,
+        project_id: str | None = None,
     ) -> Subnet:
         """
         Create a new Subnet.
+
+        Typical use-cases:
+        - Create IPv4 subnet with gateway and DHCP:
+          network_id="net-1", cidr="10.0.0.0/24", gateway_ip="10.0.0.1",
+          is_dhcp_enabled=True
+        - Provide DNS servers for instances:
+          dns_nameservers=["8.8.8.8", "1.1.1.1"]
+        - Restrict allocation range within the CIDR:
+          allocation_pools=[AllocationPool(start="10.0.0.10", end="10.0.0.200")]
+        - Add static routes propagated to instances via DHCP:
+          host_routes=[HostRoute(destination="192.0.2.0/24", nexthop="10.0.0.1")]
+        - Create on behalf of a project/tenant:
+          project_id="proj-1"
 
         :param network_id: ID of the parent network
         :param cidr: Subnet CIDR
@@ -288,6 +344,7 @@ class NetworkTools:
         :param dns_nameservers: DNS nameserver list
         :param allocation_pools: Allocation pool list
         :param host_routes: Static host routes
+        :param project_id: Project ownership to assign the subnet to
         :return: Created Subnet object
         """
         conn = get_openstack_conn()
@@ -304,11 +361,19 @@ class NetworkTools:
         if gateway_ip is not None:
             subnet_args["gateway_ip"] = gateway_ip
         if dns_nameservers is not None:
-            subnet_args["dns_nameservers"] = dns_nameservers
+            subnet_args["dns_nameservers"] = self._coerce_list_of_strings(
+                dns_nameservers
+            )
         if allocation_pools is not None:
-            subnet_args["allocation_pools"] = allocation_pools
+            subnet_args["allocation_pools"] = [
+                p.model_dump(exclude_none=True) for p in allocation_pools
+            ]
         if host_routes is not None:
-            subnet_args["host_routes"] = host_routes
+            subnet_args["host_routes"] = [
+                r.model_dump(exclude_none=True) for r in host_routes
+            ]
+        if project_id is not None:
+            subnet_args["project_id"] = project_id
         subnet = conn.network.create_subnet(**subnet_args)
         return self._convert_to_subnet_model(subnet)
 
@@ -332,8 +397,8 @@ class NetworkTools:
         clear_gateway: bool = False,
         is_dhcp_enabled: bool | None = None,
         dns_nameservers: list[str] | None = None,
-        allocation_pools: list[dict] | None = None,
-        host_routes: list[dict] | None = None,
+        allocation_pools: list[AllocationPool] | None = None,
+        host_routes: list[HostRoute] | None = None,
     ) -> Subnet:
         """
         Update subnet attributes atomically. Only provided parameters are changed; omitted
@@ -349,13 +414,13 @@ class NetworkTools:
         - `clear_gateway=True` explicitly clears `gateway_ip` (sets to None). If both `gateway_ip`
           and `clear_gateway=True` are provided, `clear_gateway` takes precedence.
         - For list-typed fields (`dns_nameservers`, `allocation_pools`, `host_routes`), the provided
-          list replaces the entire list on the server. Pass `[]` to remove all entries.
+          list replaces the entire list on the server. Pass [] to remove all entries.
         - For a DHCP toggle, read the current value via `get_subnet_detail()` and pass the inverted
           boolean to `is_dhcp_enabled`.
 
         Examples:
-        - Clear the gateway and disable DHCP: `clear_gateway=True`, `is_dhcp_enabled=False`
-        - Replace DNS servers: `dns_nameservers=["8.8.8.8", "1.1.1.1"]`
+        - Clear the gateway and disable DHCP: clear_gateway=True, is_dhcp_enabled=False
+        - Replace DNS servers: dns_nameservers=["8.8.8.8", "1.1.1.1"]
 
         :param subnet_id: ID of the subnet to update
         :param name: New subnet name
@@ -381,11 +446,17 @@ class NetworkTools:
         if is_dhcp_enabled is not None:
             update_args["enable_dhcp"] = is_dhcp_enabled
         if dns_nameservers is not None:
-            update_args["dns_nameservers"] = dns_nameservers
+            update_args["dns_nameservers"] = self._coerce_list_of_strings(
+                dns_nameservers
+            )
         if allocation_pools is not None:
-            update_args["allocation_pools"] = allocation_pools
+            update_args["allocation_pools"] = [
+                p.model_dump(exclude_none=True) for p in allocation_pools
+            ]
         if host_routes is not None:
-            update_args["host_routes"] = host_routes
+            update_args["host_routes"] = [
+                r.model_dump(exclude_none=True) for r in host_routes
+            ]
         if not update_args:
             current = conn.network.get_subnet(subnet_id)
             return self._convert_to_subnet_model(current)
@@ -469,7 +540,7 @@ class NetworkTools:
         port_id: str,
         host_id: str | None = None,
         vnic_type: str | None = None,
-        profile: dict | None = None,
+        profile: PortBindingProfile | None = None,
     ) -> Port:
         """
         Set binding attributes for a port.
@@ -487,7 +558,9 @@ class NetworkTools:
         if vnic_type is not None:
             update_args["binding_vnic_type"] = vnic_type
         if profile is not None:
-            update_args["binding_profile"] = profile
+            update_args["binding_profile"] = profile.model_dump(
+                exclude_none=True
+            )
         if not update_args:
             current = conn.network.get_port(port_id)
             return self._convert_to_port_model(current)
@@ -501,8 +574,9 @@ class NetworkTools:
         description: str | None = None,
         is_admin_state_up: bool = True,
         device_id: str | None = None,
-        fixed_ips: list[dict] | None = None,
+        fixed_ips: list[PortFixedIP] | None = None,
         security_group_ids: list[str] | None = None,
+        project_id: str | None = None,
     ) -> Port:
         """
         Create a new Port.
@@ -528,9 +602,15 @@ class NetworkTools:
         if device_id is not None:
             port_args["device_id"] = device_id
         if fixed_ips is not None:
-            port_args["fixed_ips"] = fixed_ips
+            port_args["fixed_ips"] = [
+                f.model_dump(exclude_none=True) for f in fixed_ips
+            ]
         if security_group_ids is not None:
-            port_args["security_groups"] = security_group_ids
+            port_args["security_groups"] = self._coerce_list_of_strings(
+                security_group_ids
+            )
+        if project_id is not None:
+            port_args["project_id"] = project_id
         port = conn.network.create_port(**port_args)
         return self._convert_to_port_model(port)
 
@@ -553,8 +633,8 @@ class NetworkTools:
         is_admin_state_up: bool | None = None,
         device_id: str | None = None,
         security_group_ids: list[str] | None = None,
-        allowed_address_pairs: list[dict] | None = None,
-        fixed_ips: list[dict] | None = None,
+        allowed_address_pairs: list[AllowedAddressPair] | None = None,
+        fixed_ips: list[PortFixedIP] | None = None,
     ) -> Port:
         """
         Update an existing Port. Only provided parameters are changed; omitted parameters remain untouched.
@@ -603,11 +683,17 @@ class NetworkTools:
         if device_id is not None:
             update_args["device_id"] = device_id
         if security_group_ids is not None:
-            update_args["security_groups"] = security_group_ids
+            update_args["security_groups"] = self._coerce_list_of_strings(
+                security_group_ids
+            )
         if allowed_address_pairs is not None:
-            update_args["allowed_address_pairs"] = allowed_address_pairs
+            update_args["allowed_address_pairs"] = [
+                p.model_dump(exclude_none=True) for p in allowed_address_pairs
+            ]
         if fixed_ips is not None:
-            update_args["fixed_ips"] = fixed_ips
+            update_args["fixed_ips"] = [
+                f.model_dump(exclude_none=True) for f in fixed_ips
+            ]
         if not update_args:
             current = conn.network.get_port(port_id)
             return self._convert_to_port_model(current)
@@ -681,7 +767,7 @@ class NetworkTools:
         is_admin_state_up: bool = True,
         is_distributed: bool | None = None,
         project_id: str | None = None,
-        external_gateway_info: dict | None = None,
+        external_gateway_info: ExternalGatewayInfo | None = None,
     ) -> Router:
         """
         Create a new Router.
@@ -717,7 +803,9 @@ class NetworkTools:
         if project_id is not None:
             router_args["project_id"] = project_id
         if external_gateway_info is not None:
-            router_args["external_gateway_info"] = external_gateway_info
+            router_args["external_gateway_info"] = (
+                external_gateway_info.model_dump(exclude_none=True)
+            )
         router = conn.network.create_router(**router_args)
         return self._convert_to_router_model(router)
 
@@ -739,9 +827,9 @@ class NetworkTools:
         description: str | None = None,
         is_admin_state_up: bool | None = None,
         is_distributed: bool | None = None,
-        external_gateway_info: dict | None = None,
+        external_gateway_info: ExternalGatewayInfo | None = None,
         clear_external_gateway: bool = False,
-        routes: list[dict] | None = None,
+        routes: list[Route] | None = None,
     ) -> Router:
         """
         Update Router attributes atomically. Only provided parameters are changed;
@@ -782,9 +870,13 @@ class NetworkTools:
         if clear_external_gateway:
             update_args["external_gateway_info"] = None
         elif external_gateway_info is not None:
-            update_args["external_gateway_info"] = external_gateway_info
+            update_args["external_gateway_info"] = (
+                external_gateway_info.model_dump(exclude_none=True)
+            )
         if routes is not None:
-            update_args["routes"] = routes
+            update_args["routes"] = [
+                r.model_dump(exclude_none=True) for r in routes
+            ]
         if not update_args:
             current = conn.network.get_router(router_id)
             return self._convert_to_router_model(current)

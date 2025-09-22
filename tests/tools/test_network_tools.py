@@ -1,6 +1,14 @@
 from unittest.mock import Mock
 
 from openstack_mcp_server.tools.network_tools import NetworkTools
+from openstack_mcp_server.tools.request.network import (
+    AllocationPool,
+    AllowedAddressPair,
+    ExternalGatewayInfo,
+    PortBindingProfile,
+    PortFixedIP,
+    Route,
+)
 from openstack_mcp_server.tools.response.network import (
     FloatingIP,
     Network,
@@ -675,8 +683,10 @@ class TestNetworkTools:
         mock_conn.network.update_port.return_value = updated
 
         tools = self.get_network_tools()
-        new_fixed = list(current.fixed_ips)
-        new_fixed.append({"subnet_id": "subnet-2", "ip_address": "10.0.1.10"})
+        new_fixed = [PortFixedIP(**fi) for fi in current.fixed_ips]
+        new_fixed.append(
+            PortFixedIP(subnet_id="subnet-2", ip_address="10.0.1.10")
+        )
         res = tools.update_port("port-1", fixed_ips=new_fixed)
         assert len(res.fixed_ips or []) == 2
 
@@ -710,7 +720,9 @@ class TestNetworkTools:
 
         tools = self.get_network_tools()
         filtered = [
-            fi for fi in current.fixed_ips if fi["ip_address"] != "10.0.1.10"
+            PortFixedIP(**fi)
+            for fi in current.fixed_ips
+            if fi["ip_address"] != "10.0.1.10"
         ]
         res = tools.update_port("port-1", fixed_ips=filtered)
         assert len(res.fixed_ips or []) == 1
@@ -747,7 +759,9 @@ class TestNetworkTools:
 
         pairs = []
         pairs.append(
-            {"ip_address": "192.0.2.5", "mac_address": "aa:bb:cc:dd:ee:ff"}
+            AllowedAddressPair(
+                ip_address="192.0.2.5", mac_address="aa:bb:cc:dd:ee:ff"
+            )
         )
         res_add = tools.update_port("port-1", allowed_address_pairs=pairs)
         assert isinstance(res_add, Port)
@@ -756,8 +770,8 @@ class TestNetworkTools:
             p
             for p in pairs
             if not (
-                p["ip_address"] == "192.0.2.5"
-                and p["mac_address"] == "aa:bb:cc:dd:ee:ff"
+                p.ip_address == "192.0.2.5"
+                and p.mac_address == "aa:bb:cc:dd:ee:ff"
             )
         ]
         res_remove = tools.update_port(
@@ -791,7 +805,7 @@ class TestNetworkTools:
             "port-1",
             host_id="host-1",
             vnic_type="normal",
-            profile={"key": "val"},
+            profile=PortBindingProfile(**{"key": "val"}),
         )
         assert isinstance(res_bind, Port)
 
@@ -964,7 +978,9 @@ class TestNetworkTools:
             is_dhcp_enabled=True,
             description="desc",
             dns_nameservers=["8.8.8.8"],
-            allocation_pools=[{"start": "10.0.0.10", "end": "10.0.0.20"}],
+            allocation_pools=[
+                AllocationPool(start="10.0.0.10", end="10.0.0.20")
+            ],
             host_routes=[],
         )
 
@@ -985,6 +1001,53 @@ class TestNetworkTools:
         )
 
         mock_conn.network.create_subnet.assert_called_once()
+
+    def test_create_subnet_with_string_dns_nameservers(
+        self,
+        mock_openstack_connect_network,
+    ):
+        mock_conn = mock_openstack_connect_network
+
+        subnet = Mock()
+        subnet.id = "subnet-json-dns"
+        subnet.name = "mincheol-subnet-1"
+        subnet.status = "ACTIVE"
+        subnet.description = None
+        subnet.project_id = "39b14b1717ee4d98a37127a1d90a94aa"
+        subnet.network_id = "42b146d9-3769-4611-bbb0-324674b3af31"
+        subnet.cidr = "10.1.0.0/24"
+        subnet.ip_version = 4
+        subnet.gateway_ip = "10.1.0.1"
+        subnet.enable_dhcp = True
+        subnet.is_dhcp_enabled = True
+        subnet.allocation_pools = []
+        subnet.dns_nameservers = ["8.8.8.8", "8.8.4.4"]
+        subnet.host_routes = []
+
+        mock_conn.network.create_subnet.return_value = subnet
+
+        tools = self.get_network_tools()
+        result = tools.create_subnet(
+            network_id="42b146d9-3769-4611-bbb0-324674b3af31",
+            cidr="10.1.0.0/24",
+            name="mincheol-subnet-1",
+            gateway_ip="10.1.0.1",
+            is_dhcp_enabled=True,
+            dns_nameservers='["8.8.8.8", "8.8.4.4"]',
+            project_id="39b14b1717ee4d98a37127a1d90a94aa",
+        )
+
+        assert result.dns_nameservers == ["8.8.8.8", "8.8.4.4"]
+        mock_conn.network.create_subnet.assert_called_once_with(
+            network_id="42b146d9-3769-4611-bbb0-324674b3af31",
+            cidr="10.1.0.0/24",
+            ip_version=4,
+            enable_dhcp=True,
+            name="mincheol-subnet-1",
+            gateway_ip="10.1.0.1",
+            dns_nameservers=["8.8.8.8", "8.8.4.4"],
+            project_id="39b14b1717ee4d98a37127a1d90a94aa",
+        )
 
     def test_get_subnet_detail_success(
         self,
@@ -1378,7 +1441,7 @@ class TestNetworkTools:
             is_admin_state_up=True,
             is_distributed=True,
             project_id="proj-1",
-            external_gateway_info={"network_id": "ext-net"},
+            external_gateway_info=ExternalGatewayInfo(network_id="ext-net"),
         )
 
         assert isinstance(res, Router)
@@ -1458,12 +1521,11 @@ class TestNetworkTools:
             description="d-new",
             is_admin_state_up=False,
             is_distributed=True,
-            external_gateway_info={
-                "network_id": "ext-net",
-                "enable_snat": True,
-            },
+            external_gateway_info=ExternalGatewayInfo(
+                network_id="ext-net", enable_snat=True
+            ),
             routes=[
-                {"destination": "198.51.100.0/24", "nexthop": "10.0.0.254"}
+                Route(destination="198.51.100.0/24", nexthop="10.0.0.254")
             ],
         )
         assert res.name == "r4-new"
@@ -1540,10 +1602,9 @@ class TestNetworkTools:
         tools = self.get_network_tools()
         res = tools.update_router(
             "router-8",
-            external_gateway_info={
-                "network_id": "ext-net",
-                "enable_snat": False,
-            },
+            external_gateway_info=ExternalGatewayInfo(
+                network_id="ext-net", enable_snat=False
+            ),
         )
         assert res.external_gateway_info == r.external_gateway_info
         mock_conn.network.update_router.assert_called_once_with(
@@ -1660,7 +1721,7 @@ class TestNetworkTools:
         res = tools.update_router(
             "r-rt-1",
             routes=[
-                {"destination": "198.51.100.0/24", "nexthop": "10.0.0.254"}
+                Route(destination="198.51.100.0/24", nexthop="10.0.0.254")
             ],
         )
         assert isinstance(res, Router)
