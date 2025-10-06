@@ -47,6 +47,11 @@ class NetworkTools:
         mcp.tool()(self.update_floating_ip)
         mcp.tool()(self.create_floating_ips_bulk)
         mcp.tool()(self.assign_first_available_floating_ip)
+        mcp.tool()(self.get_routers)
+        mcp.tool()(self.create_router)
+        mcp.tool()(self.get_router_detail)
+        mcp.tool()(self.update_router)
+        mcp.tool()(self.delete_router)
 
     def get_networks(
         self,
