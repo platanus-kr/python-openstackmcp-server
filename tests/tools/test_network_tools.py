@@ -54,7 +54,10 @@ class TestNetworkTools:
         mock_network2.provider_segmentation_id = None
         mock_network2.project_id = "proj-admin-000"
 
-        mock_conn.list_networks.return_value = [mock_network1, mock_network2]
+        mock_conn.network.networks.return_value = [
+            mock_network1,
+            mock_network2,
+        ]
 
         network_tools = self.get_network_tools()
         result = network_tools.get_networks()
@@ -91,7 +94,7 @@ class TestNetworkTools:
         assert result[0] == expected_network1
         assert result[1] == expected_network2
 
-        mock_conn.list_networks.assert_called_once_with(filters={})
+        mock_conn.network.networks.assert_called_once_with()
 
     def test_get_networks_empty_list(
         self,
@@ -100,14 +103,14 @@ class TestNetworkTools:
         """Test getting openstack networks when no networks exist."""
         mock_conn = mock_openstack_connect_network
 
-        mock_conn.list_networks.return_value = []
+        mock_conn.network.networks.return_value = []
 
         network_tools = self.get_network_tools()
         result = network_tools.get_networks()
 
         assert result == []
 
-        mock_conn.list_networks.assert_called_once_with(filters={})
+        mock_conn.network.networks.assert_called_once_with()
 
     def test_get_networks_with_status_filter(
         self,
@@ -142,7 +145,7 @@ class TestNetworkTools:
         mock_network2.provider_segmentation_id = None
         mock_network2.project_id = None
 
-        mock_conn.list_networks.return_value = [
+        mock_conn.network.networks.return_value = [
             mock_network1,
         ]  # Only ACTIVE network
         network_tools = self.get_network_tools()
@@ -152,8 +155,8 @@ class TestNetworkTools:
         assert result[0].id == "net-active"
         assert result[0].status == "ACTIVE"
 
-        mock_conn.list_networks.assert_called_once_with(
-            filters={"status": "ACTIVE"},
+        mock_conn.network.networks.assert_called_once_with(
+            status="ACTIVE",
         )
 
     def test_get_networks_shared_only(
@@ -189,7 +192,7 @@ class TestNetworkTools:
         mock_network2.provider_segmentation_id = None
         mock_network2.project_id = None
 
-        mock_conn.list_networks.return_value = [
+        mock_conn.network.networks.return_value = [
             mock_network2,
         ]  # Only shared network
 
@@ -200,8 +203,8 @@ class TestNetworkTools:
         assert result[0].id == "net-shared"
         assert result[0].is_shared is True
 
-        mock_conn.list_networks.assert_called_once_with(
-            filters={"shared": True},
+        mock_conn.network.networks.assert_called_once_with(
+            shared=True,
         )
 
     def test_create_network_success(self, mock_openstack_connect_network):
@@ -487,7 +490,7 @@ class TestNetworkTools:
         port.fixed_ips = [{"subnet_id": "subnet-1", "ip_address": "10.0.0.10"}]
         port.security_group_ids = ["sg-1", "sg-2"]
 
-        mock_conn.list_ports.return_value = [port]
+        mock_conn.network.ports.return_value = [port]
 
         tools = self.get_network_tools()
         result = tools.get_ports(
@@ -515,12 +518,10 @@ class TestNetworkTools:
             ),
         ]
 
-        mock_conn.list_ports.assert_called_once_with(
-            filters={
-                "status": "ACTIVE",
-                "device_id": "device-1",
-                "network_id": "net-1",
-            },
+        mock_conn.network.ports.assert_called_once_with(
+            status="ACTIVE",
+            device_id="device-1",
+            network_id="net-1",
         )
 
     def test_create_port_success(self, mock_openstack_connect_network):
@@ -848,7 +849,7 @@ class TestNetworkTools:
         subnet2.dns_nameservers = []
         subnet2.host_routes = []
 
-        mock_conn.list_subnets.return_value = [subnet1, subnet2]
+        mock_conn.network.subnets.return_value = [subnet1, subnet2]
 
         tools = self.get_network_tools()
         result = tools.get_subnets(
@@ -876,13 +877,11 @@ class TestNetworkTools:
             host_routes=[],
         )
 
-        mock_conn.list_subnets.assert_called_once_with(
-            filters={
-                "network_id": "net-1",
-                "ip_version": 4,
-                "project_id": "proj-1",
-                "enable_dhcp": True,
-            },
+        mock_conn.network.subnets.assert_called_once_with(
+            network_id="net-1",
+            ip_version=4,
+            project_id="proj-1",
+            enable_dhcp=True,
         )
 
     def test_get_subnets_has_gateway_false(
@@ -923,7 +922,7 @@ class TestNetworkTools:
         subnet2.dns_nameservers = []
         subnet2.host_routes = []
 
-        mock_conn.list_subnets.return_value = [subnet1, subnet2]
+        mock_conn.network.subnets.return_value = [subnet1, subnet2]
 
         tools = self.get_network_tools()
         result = tools.get_subnets(
@@ -1326,7 +1325,7 @@ class TestNetworkTools:
         r.is_ha = False
         r.routes = []
 
-        mock_conn.list_routers.return_value = [r]
+        mock_conn.network.routers.return_value = [r]
 
         tools = self.get_network_tools()
         res = tools.get_routers(
@@ -1350,12 +1349,10 @@ class TestNetworkTools:
             ),
         ]
 
-        mock_conn.list_routers.assert_called_once_with(
-            filters={
-                "status": "ACTIVE",
-                "project_id": "proj-1",
-                "admin_state_up": True,
-            },
+        mock_conn.network.routers.assert_called_once_with(
+            status="ACTIVE",
+            project_id="proj-1",
+            admin_state_up=True,
         )
 
     def test_create_router_success(self, mock_openstack_connect_network):

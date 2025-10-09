@@ -75,7 +75,7 @@ class NetworkTools:
         if shared_only:
             filters["shared"] = True
 
-        networks = conn.list_networks(filters=filters)
+        networks = conn.network.networks(**filters)
 
         return [
             self._convert_to_network_model(network) for network in networks
@@ -259,7 +259,7 @@ class NetworkTools:
             filters["project_id"] = project_id
         if is_dhcp_enabled is not None:
             filters["enable_dhcp"] = is_dhcp_enabled
-        subnets = conn.list_subnets(filters=filters)
+        subnets = conn.network.subnets(**filters)
         if has_gateway is not None:
             subnets = [
                 s for s in subnets if (s.gateway_ip is not None) == has_gateway
@@ -454,7 +454,7 @@ class NetworkTools:
             filters["device_id"] = device_id
         if network_id:
             filters["network_id"] = network_id
-        ports = conn.list_ports(filters=filters)
+        ports = conn.network.ports(**filters)
         return [self._convert_to_port_model(port) for port in ports]
 
     def get_port_allowed_address_pairs(self, port_id: str) -> list[dict]:
@@ -896,7 +896,7 @@ class NetworkTools:
             filters["project_id"] = project_id
         if is_admin_state_up is not None:
             filters["admin_state_up"] = is_admin_state_up
-        routers = conn.list_routers(filters=filters)
+        routers = conn.network.routers(**filters)
         return [self._convert_to_router_model(r) for r in routers]
 
     def create_router(
