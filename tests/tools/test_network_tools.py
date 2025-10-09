@@ -155,9 +155,7 @@ class TestNetworkTools:
         assert result[0].id == "net-active"
         assert result[0].status == "ACTIVE"
 
-        mock_conn.network.networks.assert_called_once_with(
-            status="ACTIVE",
-        )
+        mock_conn.network.networks.assert_called_once_with()
 
     def test_get_networks_shared_only(
         self,
@@ -519,7 +517,6 @@ class TestNetworkTools:
         ]
 
         mock_conn.network.ports.assert_called_once_with(
-            status="ACTIVE",
             device_id="device-1",
             network_id="net-1",
         )
@@ -1350,7 +1347,6 @@ class TestNetworkTools:
         ]
 
         mock_conn.network.routers.assert_called_once_with(
-            status="ACTIVE",
             project_id="proj-1",
             admin_state_up=True,
         )

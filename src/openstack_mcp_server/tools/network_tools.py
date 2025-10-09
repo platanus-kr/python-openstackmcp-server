@@ -75,11 +75,20 @@ class NetworkTools:
         if shared_only:
             filters["shared"] = True
 
-        networks = conn.network.networks(**filters)
+        server_filters = self._sanitize_server_filters(filters)
+        networks = conn.network.networks(**server_filters)
 
-        return [
+        results = [
             self._convert_to_network_model(network) for network in networks
         ]
+
+        if status_filter:
+            status_upper = status_filter.upper()
+            results = [
+                n for n in results if (n.status or "").upper() == status_upper
+            ]
+
+        return results
 
     def create_network(
         self,
@@ -454,8 +463,17 @@ class NetworkTools:
             filters["device_id"] = device_id
         if network_id:
             filters["network_id"] = network_id
-        ports = conn.network.ports(**filters)
-        return [self._convert_to_port_model(port) for port in ports]
+
+        server_filters = self._sanitize_server_filters(filters)
+        ports = conn.network.ports(**server_filters)
+
+        results = [self._convert_to_port_model(port) for port in ports]
+        if status_filter:
+            status_upper = status_filter.upper()
+            results = [
+                p for p in results if (p.status or "").upper() == status_upper
+            ]
+        return results
 
     def get_port_allowed_address_pairs(self, port_id: str) -> list[dict]:
         """
@@ -896,8 +914,19 @@ class NetworkTools:
             filters["project_id"] = project_id
         if is_admin_state_up is not None:
             filters["admin_state_up"] = is_admin_state_up
-        routers = conn.network.routers(**filters)
-        return [self._convert_to_router_model(r) for r in routers]
+        # Do not pass unsupported filters (e.g., status) to the server.
+        server_filters = self._sanitize_server_filters(filters)
+        routers = conn.network.routers(**server_filters)
+
+        router_models = [self._convert_to_router_model(r) for r in routers]
+        if status_filter:
+            status_upper = status_filter.upper()
+            router_models = [
+                r
+                for r in router_models
+                if (r.status or "").upper() == status_upper
+            ]
+        return router_models
 
     def create_router(
         self,
@@ -1047,3 +1076,20 @@ class NetworkTools:
             is_ha=getattr(openstack_router, "is_ha", None),
             routes=getattr(openstack_router, "routes", None),
         )
+
+    def _sanitize_server_filters(self, filters: dict) -> dict:
+        """
+        Remove unsupported query params before sending to Neutron.
+
+        Currently removed keys:
+        - "status": not universally supported for server-side filtering
+
+        :param filters: original filter dict
+        :return: cleaned filter dict safe for server query
+        """
+        if not filters:
+            return {}
+        attrs = dict(filters)
+        # Remove client-only or unsupported filters
+        attrs.pop("status", None)
+        return attrs
