@@ -155,7 +155,9 @@ class TestNetworkTools:
         assert result[0].id == "net-active"
         assert result[0].status == "ACTIVE"
 
-        mock_conn.network.networks.assert_called_once_with()
+        mock_conn.network.networks.assert_called_once_with(
+            status="ACTIVE",
+        )
 
     def test_get_networks_shared_only(
         self,
@@ -202,8 +204,36 @@ class TestNetworkTools:
         assert result[0].is_shared is True
 
         mock_conn.network.networks.assert_called_once_with(
-            shared=True,
+            is_shared=True,
         )
+
+    def test_get_networks_status_filter_case_insensitive(
+        self,
+        mock_openstack_connect_network,
+    ):
+        mock_conn = mock_openstack_connect_network
+
+        mock_network = Mock()
+        mock_network.id = "net-active"
+        mock_network.name = "active-network"
+        mock_network.status = "ACTIVE"
+        mock_network.description = None
+        mock_network.is_admin_state_up = True
+        mock_network.is_shared = False
+        mock_network.mtu = None
+        mock_network.provider_network_type = None
+        mock_network.provider_physical_network = None
+        mock_network.provider_segmentation_id = None
+        mock_network.project_id = None
+
+        mock_conn.network.networks.return_value = [mock_network]
+
+        tools = self.get_network_tools()
+        res = tools.get_networks(status_filter="active")
+
+        assert len(res) == 1
+        assert res[0].status == "ACTIVE"
+        mock_conn.network.networks.assert_called_once_with(status="ACTIVE")
 
     def test_create_network_success(self, mock_openstack_connect_network):
         """Test creating a network successfully."""
@@ -517,6 +547,7 @@ class TestNetworkTools:
         ]
 
         mock_conn.network.ports.assert_called_once_with(
+            status="ACTIVE",
             device_id="device-1",
             network_id="net-1",
         )
@@ -567,6 +598,34 @@ class TestNetworkTools:
         )
 
         mock_conn.network.create_port.assert_called_once()
+
+    def test_get_ports_status_filter_only(
+        self, mock_openstack_connect_network
+    ):
+        mock_conn = mock_openstack_connect_network
+
+        port = Mock()
+        port.id = "port-1"
+        port.name = "p1"
+        port.status = "DOWN"
+        port.description = None
+        port.project_id = None
+        port.network_id = "net-1"
+        port.admin_state_up = True
+        port.is_admin_state_up = True
+        port.device_id = None
+        port.device_owner = None
+        port.mac_address = "fa:16:3e:00:00:03"
+        port.fixed_ips = []
+        port.security_group_ids = None
+
+        mock_conn.network.ports.return_value = [port]
+
+        tools = self.get_network_tools()
+        res = tools.get_ports(status_filter="down")
+        assert len(res) == 1
+        assert res[0].status == "DOWN"
+        mock_conn.network.ports.assert_called_once_with(status="DOWN")
 
     def test_get_port_detail_success(self, mock_openstack_connect_network):
         mock_conn = mock_openstack_connect_network

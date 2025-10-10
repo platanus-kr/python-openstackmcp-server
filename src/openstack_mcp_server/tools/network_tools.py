@@ -73,22 +73,13 @@ class NetworkTools:
             filters["status"] = status_filter.upper()
 
         if shared_only:
-            filters["shared"] = True
+            filters["is_shared"] = True
 
-        server_filters = self._sanitize_server_filters(filters)
-        networks = conn.network.networks(**server_filters)
+        networks = conn.network.networks(**filters)
 
-        results = [
+        return [
             self._convert_to_network_model(network) for network in networks
         ]
-
-        if status_filter:
-            status_upper = status_filter.upper()
-            results = [
-                n for n in results if (n.status or "").upper() == status_upper
-            ]
-
-        return results
 
     def create_network(
         self,
@@ -464,16 +455,9 @@ class NetworkTools:
         if network_id:
             filters["network_id"] = network_id
 
-        server_filters = self._sanitize_server_filters(filters)
-        ports = conn.network.ports(**server_filters)
+        ports = conn.network.ports(**filters)
 
-        results = [self._convert_to_port_model(port) for port in ports]
-        if status_filter:
-            status_upper = status_filter.upper()
-            results = [
-                p for p in results if (p.status or "").upper() == status_upper
-            ]
-        return results
+        return [self._convert_to_port_model(port) for port in ports]
 
     def get_port_allowed_address_pairs(self, port_id: str) -> list[dict]:
         """
