@@ -1088,8 +1088,6 @@ class NetworkTools:
                 first = p.fixed_ips[0]
                 if isinstance(first, dict):
                     subnet_id = first.get("subnet_id")
-                else:
-                    subnet_id = None
             result.append(
                 RouterInterface(
                     router_id=router_id,
