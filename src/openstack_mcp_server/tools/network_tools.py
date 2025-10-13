@@ -1059,10 +1059,8 @@ class NetworkTools:
         """
         conn = get_openstack_conn()
         args: dict = {}
-        if subnet_id is not None:
-            args["subnet_id"] = subnet_id
-        if port_id is not None:
-            args["port_id"] = port_id
+        args["subnet_id"] = subnet_id
+        args["port_id"] = port_id
         res = conn.network.add_interface_to_router(router_id, **args)
         return RouterInterface(
             router_id=res.get("router_id", router_id),
