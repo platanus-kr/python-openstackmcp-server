@@ -11,6 +11,7 @@ from .response.network import (
     Port,
     Router,
     RouterInterface,
+    SecurityGroup,
     Subnet,
 )
 
@@ -56,6 +57,11 @@ class NetworkTools:
         mcp.tool()(self.add_router_interface)
         mcp.tool()(self.get_router_interfaces)
         mcp.tool()(self.remove_router_interface)
+        mcp.tool()(self.get_security_groups)
+        mcp.tool()(self.create_security_group)
+        mcp.tool()(self.get_security_group_detail)
+        mcp.tool()(self.update_security_group)
+        mcp.tool()(self.delete_security_group)
 
     def get_networks(
         self,
@@ -1161,6 +1167,135 @@ class NetworkTools:
         if not filters:
             return {}
         attrs = dict(filters)
-        # Remove client-only or unsupported filters
         attrs.pop("status", None)
         return attrs
+
+    def get_security_groups(
+        self,
+        project_id: str | None = None,
+        name: str | None = None,
+    ) -> list[SecurityGroup]:
+        """
+        Get the list of Security Groups with optional filtering.
+
+        :param project_id: Filter by project ID
+        :param name: Filter by security group name
+        :return: List of SecurityGroup objects
+        """
+        conn = get_openstack_conn()
+        filters: dict = {}
+        if project_id:
+            filters["project_id"] = project_id
+        if name:
+            filters["name"] = name
+        security_groups = conn.network.security_groups(**filters)
+        return [
+            self._convert_to_security_group_model(sg) for sg in security_groups
+        ]
+
+    def create_security_group(
+        self,
+        name: str,
+        description: str | None = None,
+        project_id: str | None = None,
+    ) -> SecurityGroup:
+        """
+        Create a new Security Group.
+
+        :param name: Security group name
+        :param description: Security group description
+        :param project_id: Project ID to assign ownership
+        :return: Created SecurityGroup object
+        """
+        conn = get_openstack_conn()
+        args: dict = {"name": name}
+        if description is not None:
+            args["description"] = description
+        if project_id is not None:
+            args["project_id"] = project_id
+        sg = conn.network.create_security_group(**args)
+        return self._convert_to_security_group_model(sg)
+
+    def get_security_group_detail(
+        self, security_group_id: str
+    ) -> SecurityGroup:
+        """
+        Get detailed information about a specific Security Group.
+
+        :param security_group_id: ID of the security group to retrieve
+        :return: SecurityGroup details
+        """
+        conn = get_openstack_conn()
+        sg = conn.network.get_security_group(security_group_id)
+        return self._convert_to_security_group_model(sg)
+
+    def update_security_group(
+        self,
+        security_group_id: str,
+        name: str | None = None,
+        description: str | None = None,
+    ) -> SecurityGroup:
+        """
+        Update an existing Security Group.
+
+        :param security_group_id: ID of the security group to update
+        :param name: New security group name
+        :param description: New security group description
+        :return: Updated SecurityGroup object
+        """
+        conn = get_openstack_conn()
+        update_args: dict = {}
+        if name is not None:
+            update_args["name"] = name
+        if description is not None:
+            update_args["description"] = description
+        if not update_args:
+            current = conn.network.get_security_group(security_group_id)
+            return self._convert_to_security_group_model(current)
+        sg = conn.network.update_security_group(
+            security_group_id, **update_args
+        )
+        return self._convert_to_security_group_model(sg)
+
+    def delete_security_group(self, security_group_id: str) -> None:
+        """
+        Delete a Security Group.
+
+        :param security_group_id: ID of the security group to delete
+        :return: None
+        """
+        conn = get_openstack_conn()
+        conn.network.delete_security_group(
+            security_group_id, ignore_missing=False
+        )
+        return None
+
+    def _convert_to_security_group_model(self, openstack_sg) -> SecurityGroup:
+        """
+        Convert an OpenStack Security Group object to a SecurityGroup pydantic model.
+
+        :param openstack_sg: OpenStack security group object
+        :return: Pydantic SecurityGroup model
+        """
+        rule_ids: list[str] | None = None
+        rules = getattr(openstack_sg, "security_group_rules", None)
+        if rules is not None:
+            extracted: list[str] = []
+            for r in rules:
+                rid = None
+                if isinstance(r, dict):
+                    rid = r.get("id")
+                else:
+                    rid = getattr(r, "id", None)
+                if rid:
+                    extracted.append(str(rid))
+            rule_ids = extracted
+
+        return SecurityGroup(
+            id=openstack_sg.id,
+            name=getattr(openstack_sg, "name", None),
+            status=getattr(openstack_sg, "status", None),
+            description=getattr(openstack_sg, "description", None),
+            project_id=getattr(openstack_sg, "project_id", None),
+            security_group_rule_ids=rule_ids,
+        )
