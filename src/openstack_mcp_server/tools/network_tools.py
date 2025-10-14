@@ -178,9 +178,9 @@ class NetworkTools:
 
         update_args = {}
 
-        if name is not None:
+        if name:
             update_args["name"] = name
-        if description is not None:
+        if description:
             update_args["description"] = description
         if is_admin_state_up is not None:
             update_args["admin_state_up"] = is_admin_state_up
@@ -312,11 +312,11 @@ class NetworkTools:
             "ip_version": ip_version,
             "enable_dhcp": is_dhcp_enabled,
         }
-        if name is not None:
+        if name:
             subnet_args["name"] = name
-        if description is not None:
+        if description:
             subnet_args["description"] = description
-        if gateway_ip is not None:
+        if gateway_ip:
             subnet_args["gateway_ip"] = gateway_ip
         if dns_nameservers is not None:
             subnet_args["dns_nameservers"] = dns_nameservers
@@ -385,13 +385,13 @@ class NetworkTools:
         """
         conn = get_openstack_conn()
         update_args: dict = {}
-        if name is not None:
+        if name:
             update_args["name"] = name
-        if description is not None:
+        if description:
             update_args["description"] = description
         if clear_gateway:
             update_args["gateway_ip"] = None
-        elif gateway_ip is not None:
+        elif gateway_ip:
             update_args["gateway_ip"] = gateway_ip
         if is_dhcp_enabled is not None:
             update_args["enable_dhcp"] = is_dhcp_enabled
@@ -499,9 +499,9 @@ class NetworkTools:
         """
         conn = get_openstack_conn()
         update_args: dict = {}
-        if host_id is not None:
+        if host_id:
             update_args["binding_host_id"] = host_id
-        if vnic_type is not None:
+        if vnic_type:
             update_args["binding_vnic_type"] = vnic_type
         if profile is not None:
             update_args["binding_profile"] = profile
@@ -538,11 +538,11 @@ class NetworkTools:
             "network_id": network_id,
             "admin_state_up": is_admin_state_up,
         }
-        if name is not None:
+        if name:
             port_args["name"] = name
-        if description is not None:
+        if description:
             port_args["description"] = description
-        if device_id is not None:
+        if device_id:
             port_args["device_id"] = device_id
         if fixed_ips is not None:
             port_args["fixed_ips"] = fixed_ips
@@ -611,13 +611,13 @@ class NetworkTools:
         """
         conn = get_openstack_conn()
         update_args: dict = {}
-        if name is not None:
+        if name:
             update_args["name"] = name
-        if description is not None:
+        if description:
             update_args["description"] = description
         if is_admin_state_up is not None:
             update_args["admin_state_up"] = is_admin_state_up
-        if device_id is not None:
+        if device_id:
             update_args["device_id"] = device_id
         if security_group_ids is not None:
             update_args["security_groups"] = security_group_ids
@@ -724,13 +724,13 @@ class NetworkTools:
         """
         conn = get_openstack_conn()
         ip_args: dict = {"floating_network_id": floating_network_id}
-        if description is not None:
+        if description:
             ip_args["description"] = description
-        if fixed_ip_address is not None:
+        if fixed_ip_address:
             ip_args["fixed_ip_address"] = fixed_ip_address
-        if port_id is not None:
+        if port_id:
             ip_args["port_id"] = port_id
-        if project_id is not None:
+        if project_id:
             ip_args["project_id"] = project_id
         ip = conn.network.create_ip(**ip_args)
         return self._convert_to_floating_ip_model(ip)
@@ -751,7 +751,7 @@ class NetworkTools:
         """
         conn = get_openstack_conn()
         update_args: dict = {"port_id": port_id}
-        if fixed_ip_address is not None:
+        if fixed_ip_address:
             update_args["fixed_ip_address"] = fixed_ip_address
         ip = conn.network.update_ip(floating_ip_id, **update_args)
         return self._convert_to_floating_ip_model(ip)
@@ -792,9 +792,9 @@ class NetworkTools:
         update_args: dict = {}
         if description is not None:
             update_args["description"] = description
-        if port_id is not None:
+        if port_id:
             update_args["port_id"] = port_id
-            if fixed_ip_address is not None:
+            if fixed_ip_address:
                 update_args["fixed_ip_address"] = fixed_ip_address
         else:
             if clear_port:
@@ -954,13 +954,13 @@ class NetworkTools:
         """
         conn = get_openstack_conn()
         router_args: dict = {"admin_state_up": is_admin_state_up}
-        if name is not None:
+        if name:
             router_args["name"] = name
-        if description is not None:
+        if description:
             router_args["description"] = description
         if is_distributed is not None:
             router_args["distributed"] = is_distributed
-        if project_id is not None:
+        if project_id:
             router_args["project_id"] = project_id
         if external_gateway_info is not None:
             router_args["external_gateway_info"] = (
@@ -1015,9 +1015,9 @@ class NetworkTools:
         """
         conn = get_openstack_conn()
         update_args: dict = {}
-        if name is not None:
+        if name:
             update_args["name"] = name
-        if description is not None:
+        if description:
             update_args["description"] = description
         if is_admin_state_up is not None:
             update_args["admin_state_up"] = is_admin_state_up
@@ -1121,9 +1121,9 @@ class NetworkTools:
         """
         conn = get_openstack_conn()
         args: dict = {}
-        if subnet_id is not None:
+        if subnet_id:
             args["subnet_id"] = subnet_id
-        if port_id is not None:
+        if port_id:
             args["port_id"] = port_id
         res = conn.network.remove_interface_from_router(router_id, **args)
         return RouterInterface(
@@ -1210,9 +1210,9 @@ class NetworkTools:
         """
         conn = get_openstack_conn()
         args: dict = {"name": name}
-        if description is not None:
+        if description:
             args["description"] = description
-        if project_id is not None:
+        if project_id:
             args["project_id"] = project_id
         sg = conn.network.create_security_group(**args)
         return self._convert_to_security_group_model(sg)
