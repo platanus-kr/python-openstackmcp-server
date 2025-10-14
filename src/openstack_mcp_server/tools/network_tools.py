@@ -12,6 +12,7 @@ from .response.network import (
     Router,
     RouterInterface,
     SecurityGroup,
+    SecurityGroupRule,
     Subnet,
 )
 
@@ -1280,16 +1281,10 @@ class NetworkTools:
         rule_ids: list[str] | None = None
         rules = getattr(openstack_sg, "security_group_rules", None)
         if rules is not None:
-            extracted: list[str] = []
-            for r in rules:
-                rid = None
-                if isinstance(r, dict):
-                    rid = r.get("id")
-                else:
-                    rid = getattr(r, "id", None)
-                if rid:
-                    extracted.append(str(rid))
-            rule_ids = extracted
+            dto_rules = [
+                self._convert_to_security_group_rule_model(r) for r in rules
+            ]
+            rule_ids = [str(r.id) for r in dto_rules if getattr(r, "id", None)]
 
         return SecurityGroup(
             id=openstack_sg.id,
@@ -1299,3 +1294,12 @@ class NetworkTools:
             project_id=getattr(openstack_sg, "project_id", None),
             security_group_rule_ids=rule_ids,
         )
+
+    def _convert_to_security_group_rule_model(self, rule) -> SecurityGroupRule:
+        """
+        Convert an OpenStack Security Group Rule to a SecurityGroupRule DTO.
+
+        :param rule: OpenStack security group rule object or dict
+        :return: Pydantic SecurityGroupRule model
+        """
+        return SecurityGroupRule.model_validate(rule, from_attributes=True)
