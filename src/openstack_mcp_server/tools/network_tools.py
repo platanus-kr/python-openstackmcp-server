@@ -1175,12 +1175,14 @@ class NetworkTools:
         self,
         project_id: str | None = None,
         name: str | None = None,
+        id: str | None = None,
     ) -> list[SecurityGroup]:
         """
         Get the list of Security Groups with optional filtering.
 
         :param project_id: Filter by project ID
         :param name: Filter by security group name
+        :param id: Filter by security group ID
         :return: List of SecurityGroup objects
         """
         conn = get_openstack_conn()
@@ -1189,6 +1191,8 @@ class NetworkTools:
             filters["project_id"] = project_id
         if name:
             filters["name"] = name
+        if id:
+            filters["id"] = id
         security_groups = conn.network.security_groups(**filters)
         return [
             self._convert_to_security_group_model(sg) for sg in security_groups
@@ -1282,7 +1286,8 @@ class NetworkTools:
         rules = getattr(openstack_sg, "security_group_rules", None)
         if rules is not None:
             dto_rules = [
-                self._convert_to_security_group_rule_model(r) for r in rules
+                SecurityGroupRule.model_validate(r, from_attributes=True)
+                for r in rules
             ]
             rule_ids = [str(r.id) for r in dto_rules if getattr(r, "id", None)]
 
@@ -1294,12 +1299,3 @@ class NetworkTools:
             project_id=getattr(openstack_sg, "project_id", None),
             security_group_rule_ids=rule_ids,
         )
-
-    def _convert_to_security_group_rule_model(self, rule) -> SecurityGroupRule:
-        """
-        Convert an OpenStack Security Group Rule to a SecurityGroupRule DTO.
-
-        :param rule: OpenStack security group rule object or dict
-        :return: Pydantic SecurityGroupRule model
-        """
-        return SecurityGroupRule.model_validate(rule, from_attributes=True)

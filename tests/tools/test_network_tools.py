@@ -1400,6 +1400,37 @@ class TestNetworkTools:
             project_id="proj-1", name="default"
         )
 
+    def test_get_security_groups_filter_by_id(
+        self, mock_openstack_connect_network
+    ):
+        mock_conn = mock_openstack_connect_network
+
+        sg = Mock()
+        sg.id = "sg-1"
+        sg.name = "default"
+        sg.status = None
+        sg.description = "desc"
+        sg.project_id = "proj-1"
+        sg.security_group_rules = [
+            {"id": "r-1"},
+            {"id": "r-2"},
+        ]
+        mock_conn.network.security_groups.return_value = [sg]
+
+        tools = self.get_network_tools()
+        res = tools.get_security_groups(id="sg-1")
+        assert res == [
+            SecurityGroup(
+                id="sg-1",
+                name="default",
+                status=None,
+                description="desc",
+                project_id="proj-1",
+                security_group_rule_ids=["r-1", "r-2"],
+            )
+        ]
+        mock_conn.network.security_groups.assert_called_once_with(id="sg-1")
+
     def test_create_security_group(self, mock_openstack_connect_network):
         mock_conn = mock_openstack_connect_network
         sg = Mock()
@@ -1463,7 +1494,10 @@ class TestNetworkTools:
             "sg-4", name="new-name", description="new-desc"
         )
 
-        # No fields -> returns current
+    def test_update_security_group_no_fields_returns_current(
+        self, mock_openstack_connect_network
+    ):
+        mock_conn = mock_openstack_connect_network
         current = Mock()
         current.id = "sg-5"
         current.name = "cur"
@@ -1472,8 +1506,11 @@ class TestNetworkTools:
         current.project_id = None
         current.security_group_rules = None
         mock_conn.network.get_security_group.return_value = current
-        res2 = tools.update_security_group("sg-5")
-        assert res2.id == "sg-5"
+
+        tools = self.get_network_tools()
+        res = tools.update_security_group("sg-5")
+        assert res.id == "sg-5"
+        mock_conn.network.get_security_group.assert_called_once_with("sg-5")
 
     def test_delete_security_group(self, mock_openstack_connect_network):
         mock_conn = mock_openstack_connect_network
