@@ -790,7 +790,7 @@ class NetworkTools:
         """
         conn = get_openstack_conn()
         update_args: dict = {}
-        if description is not None:
+        if description:
             update_args["description"] = description
         if port_id:
             update_args["port_id"] = port_id
@@ -1250,9 +1250,9 @@ class NetworkTools:
         """
         conn = get_openstack_conn()
         update_args: dict = {}
-        if name is not None:
+        if name:
             update_args["name"] = name
-        if description is not None:
+        if description:
             update_args["description"] = description
         if not update_args:
             current = conn.network.get_security_group(security_group_id)
