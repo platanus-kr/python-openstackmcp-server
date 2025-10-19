@@ -1370,6 +1370,7 @@ class TestNetworkTools:
         assert isinstance(auto, FloatingIP)
 
     def test_get_security_groups_filters(self, mock_openstack_connect_network):
+        """Test getting security groups with filters."""
         mock_conn = mock_openstack_connect_network
 
         sg = Mock()
@@ -1382,54 +1383,31 @@ class TestNetworkTools:
             {"id": "r-1"},
             {"id": "r-2"},
         ]
-        mock_conn.network.security_groups.return_value = [sg]
+
+        expected_sg = SecurityGroup(
+            id="sg-1",
+            name="default",
+            status=None,
+            description="desc",
+            project_id="proj-1",
+            security_group_rule_ids=["r-1", "r-2"],
+        )
 
         tools = self.get_network_tools()
+
+        # Test by project_id and name
+        mock_conn.network.security_groups.return_value = [sg]
         res = tools.get_security_groups(project_id="proj-1", name="default")
-        assert res == [
-            SecurityGroup(
-                id="sg-1",
-                name="default",
-                status=None,
-                description="desc",
-                project_id="proj-1",
-                security_group_rule_ids=["r-1", "r-2"],
-            )
-        ]
-        mock_conn.network.security_groups.assert_called_once_with(
+        assert res == [expected_sg]
+        mock_conn.network.security_groups.assert_called_with(
             project_id="proj-1", name="default"
         )
 
-    def test_get_security_groups_filter_by_id(
-        self, mock_openstack_connect_network
-    ):
-        mock_conn = mock_openstack_connect_network
-
-        sg = Mock()
-        sg.id = "sg-1"
-        sg.name = "default"
-        sg.status = None
-        sg.description = "desc"
-        sg.project_id = "proj-1"
-        sg.security_group_rules = [
-            {"id": "r-1"},
-            {"id": "r-2"},
-        ]
+        # Test by id
         mock_conn.network.security_groups.return_value = [sg]
-
-        tools = self.get_network_tools()
         res = tools.get_security_groups(id="sg-1")
-        assert res == [
-            SecurityGroup(
-                id="sg-1",
-                name="default",
-                status=None,
-                description="desc",
-                project_id="proj-1",
-                security_group_rule_ids=["r-1", "r-2"],
-            )
-        ]
-        mock_conn.network.security_groups.assert_called_once_with(id="sg-1")
+        assert res == [expected_sg]
+        mock_conn.network.security_groups.assert_called_with(id="sg-1")
 
     def test_create_security_group(self, mock_openstack_connect_network):
         mock_conn = mock_openstack_connect_network
