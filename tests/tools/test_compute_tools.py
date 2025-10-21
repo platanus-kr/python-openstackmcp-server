@@ -270,9 +270,11 @@ class TestComputeTools:
                 call(compute_tools.delete_server),
                 call(compute_tools.attach_volume),
                 call(compute_tools.detach_volume),
+                call(compute_tools.add_security_group_to_server),
+                call(compute_tools.remove_security_group_from_server),
             ],
         )
-        assert mock_tool_decorator.call_count == 9
+        assert mock_tool_decorator.call_count == 11
 
     def test_compute_tools_instantiation(self):
         """Test ComputeTools can be instantiated."""
@@ -644,3 +646,63 @@ class TestComputeTools:
         mock_conn.compute.delete_volume_attachment.assert_called_once_with(
             server_id, volume_id
         )
+
+    def test_add_remove_security_group_on_server(
+        self, mock_get_openstack_conn
+    ):
+        """Test adding/removing security group names on a server (idempotent)."""
+        mock_conn = mock_get_openstack_conn
+        server_id = "srv-1"
+
+        # current sg: default, web
+        current = {
+            "id": server_id,
+            "name": "s1",
+            "status": "ACTIVE",
+            "security_groups": [{"name": "default"}, {"name": "web"}],
+        }
+        mock_conn.compute.get_server.return_value = current
+
+        updated_add = {
+            **current,
+            "security_groups": [
+                {"name": "default"},
+                {"name": "web"},
+                {"name": "db"},
+            ],
+        }
+        mock_conn.compute.add_security_group_to_server.return_value = None
+        mock_conn.compute.get_server.side_effect = [current, updated_add]
+
+        tools = ComputeTools()
+        res_add = tools.add_security_group_to_server(server_id, "db")
+        assert isinstance(res_add, Server)
+        mock_conn.compute.add_security_group_to_server.assert_called_with(
+            server_id, "db"
+        )
+
+        # idempotent add
+        mock_conn.compute.get_server.side_effect = [updated_add]
+        res_add_again = tools.add_security_group_to_server(server_id, "db")
+        assert isinstance(res_add_again, Server)
+
+        # remove
+        mock_conn.compute.get_server.return_value = current
+        updated_remove = {
+            **current,
+            "security_groups": [{"name": "default"}],
+        }
+        mock_conn.compute.remove_security_group_from_server.return_value = None
+        mock_conn.compute.get_server.side_effect = [current, updated_remove]
+        res_remove = tools.remove_security_group_from_server(server_id, "web")
+        assert isinstance(res_remove, Server)
+        mock_conn.compute.remove_security_group_from_server.assert_called_with(
+            server_id, "web"
+        )
+
+        # idempotent remove
+        mock_conn.compute.get_server.side_effect = [updated_remove]
+        res_remove_again = tools.remove_security_group_from_server(
+            server_id, "web"
+        )
+        assert isinstance(res_remove_again, Server)

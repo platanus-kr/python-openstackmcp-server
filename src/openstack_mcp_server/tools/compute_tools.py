@@ -47,6 +47,8 @@ class ComputeTools:
         mcp.tool()(self.delete_server)
         mcp.tool()(self.attach_volume)
         mcp.tool()(self.detach_volume)
+        mcp.tool()(self.add_security_group_to_server)
+        mcp.tool()(self.remove_security_group_from_server)
 
     def get_servers(self) -> list[Server]:
         """
@@ -241,3 +243,56 @@ class ComputeTools:
         """
         conn = get_openstack_conn()
         conn.compute.delete_volume_attachment(server_id, volume_id)
+
+    def add_security_group_to_server(
+        self, server_id: str, security_group_name: str
+    ) -> Server:
+        """
+        Attach a security group (by name) to the server using Nova action API.
+        Nova operates with security group names at the server level.
+
+        Idempotent: if the security group already exists on the server, returns
+        the current server state without updating.
+
+        :param server_id: The UUID of the server
+        :param security_group_name: The security group name to add
+        :return: Updated (or current) Server object
+        """
+        conn = get_openstack_conn()
+        current = conn.compute.get_server(server_id)
+        current_sg = [
+            sg.get("name") for sg in (current.get("security_groups") or [])
+        ]
+        if security_group_name in current_sg:
+            return Server(**current)
+        conn.compute.add_security_group_to_server(
+            server_id, security_group_name
+        )
+        refreshed = conn.compute.get_server(server_id)
+        return Server(**refreshed)
+
+    def remove_security_group_from_server(
+        self, server_id: str, security_group_name: str
+    ) -> Server:
+        """
+        Detach a security group (by name) from the server using Nova action API.
+
+        Idempotent: if the security group is not present, returns the current
+        server state without updating.
+
+        :param server_id: The UUID of the server
+        :param security_group_name: The security group name to remove
+        :return: Updated (or current) Server object
+        """
+        conn = get_openstack_conn()
+        current = conn.compute.get_server(server_id)
+        current_sg = [
+            sg.get("name") for sg in (current.get("security_groups") or [])
+        ]
+        if security_group_name not in current_sg:
+            return Server(**current)
+        conn.compute.remove_security_group_from_server(
+            server_id, security_group_name
+        )
+        refreshed = conn.compute.get_server(server_id)
+        return Server(**refreshed)
